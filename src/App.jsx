@@ -20,6 +20,16 @@ const EXAMPLE_QUESTIONS = [
     "How did enslaved Africans preserve their culture?",
     "What Black philosophers should everyone know?",
     "How does systemic racism affect Black health outcomes?",
+    "What are traditional African relationship values?",
+    "What did soul food mean to enslaved Black Americans?",
+    "How do Black women navigate love and partnership?",
+    "What African herbs and plants have healing properties?",
+    "What is the history of Juneteenth?",
+    "How did the Black Panthers address community health?",
+    "What is Ubuntu philosophy and how does it apply today?",
+    "What foods did West Africans eat before colonization?",
+    "How does the Black church influence relationships?",
+    "What can Black men learn from African rites of passage?",
 ]
 
 function cleanMarkdown(text) {
@@ -73,7 +83,7 @@ function RotatingQuestion({ onAsk }) {
                 setIndex(prev => (prev + 1) % EXAMPLE_QUESTIONS.length)
                 setVisible(true)
             }, 400)
-        }, 4000)
+        }, 6000)
         return () => clearInterval(interval)
     }, [])
 
@@ -86,7 +96,7 @@ function RotatingQuestion({ onAsk }) {
                 onClick={() => onAsk(EXAMPLE_QUESTIONS[index])}
                 style={{
                     background: "transparent",
-                    border: `1px solid ${BORDER}`,
+                    border: "none",
                     borderRadius: 100,
                     color: TEXT,
                     fontFamily: "'Cormorant Garamond', serif",
@@ -96,11 +106,11 @@ function RotatingQuestion({ onAsk }) {
                     cursor: "pointer",
                     maxWidth: 560,
                     lineHeight: 1.4,
-                    transition: "opacity 0.4s ease, border-color 0.2s, color 0.2s",
+                    transition: "opacity 0.4s ease, color 0.2s",
                     opacity: visible ? 1 : 0,
                 }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXT }}
+                onMouseEnter={e => { e.currentTarget.style.color = GOLD }}
+                onMouseLeave={e => { e.currentTarget.style.color = TEXT }}
             >
                 "{EXAMPLE_QUESTIONS[index]}"
             </button>
