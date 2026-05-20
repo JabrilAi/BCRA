@@ -87,33 +87,41 @@ function Sidebar({ history, activeId, onSelect, onNewChat }) {
 }
 
 // ─── Welcome Screen ───────────────────────────────────────────────────────────
-function WelcomeScreen({ onChipClick }) {
+function WelcomeScreen({ onChipClick, isMobile }) {
     return (
         <div style={{
             flex: 1, display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center",
-            padding: "40px 32px 160px", textAlign: "center",
+            padding: isMobile ? "24px 20px 140px" : "40px 32px 160px",
+            textAlign: "center", overflowY: "auto",
         }}>
+            {isMobile && (
+                <div style={{ marginBottom: 20 }}>
+                    <img src={logo} alt="Jabril AI" style={{ width: 72, height: "auto" }} />
+                </div>
+            )}
             <p style={{ color: GOLD, fontSize: 11, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>
                 Jabril AI
             </p>
-            <p style={{ color: MUTED, fontSize: 14, maxWidth: 440, lineHeight: 1.75, marginBottom: 52 }}>
+            <p style={{ color: MUTED, fontSize: 13, maxWidth: 380, lineHeight: 1.75, marginBottom: isMobile ? 32 : 52 }}>
                 A curated repository of knowledge from Black scholars, authors, and practitioners preserved in the Black Civilization Research Archive.
             </p>
             <h1 style={{
                 fontFamily: "'Cormorant Garamond', serif",
                 fontStyle: "italic", fontWeight: 300,
-                fontSize: "clamp(36px, 4.5vw, 56px)",
+                fontSize: isMobile ? "36px" : "clamp(36px, 4.5vw, 56px)",
                 color: TEXT, lineHeight: 1.15,
-                marginBottom: 52, maxWidth: 560,
+                marginBottom: isMobile ? 32 : 52, maxWidth: 560,
             }}>
                 Peace researcher!<br />How may I help you today?
             </h1>
+            {!isMobile && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", maxWidth: 700 }}>
                 {CHIPS.map(chip => (
                     <ChipButton key={chip.id} label={chip.label} onClick={() => onChipClick(chip.prompt)} />
                 ))}
             </div>
+            )}
         </div>
     )
 }
@@ -141,9 +149,9 @@ function ChipButton({ label, onClick }) {
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
-function ChatArea({ messages, messagesEndRef }) {
+function ChatArea({ messages, messagesEndRef, isMobile }) {
     return (
-        <div style={{ flex: 1, overflowY: "auto", padding: "32px 40px 180px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "20px 16px 160px" : "32px 40px 180px" }}>
             <div style={{ maxWidth: 720, margin: "0 auto" }}>
             {messages.map(msg => (
                 <div key={msg.id} style={{ padding: "20px 0", borderBottom: `1px solid ${BORDER}` }}>
@@ -154,7 +162,7 @@ function ChatArea({ messages, messagesEndRef }) {
                     }}>
                         {msg.role === "user" ? "You" : msg.role === "loading" ? "Archive" : "Jabril AI"}
                     </div>
-                    <div style={{ fontSize: 17, lineHeight: 1.9, color: msg.role === "loading" ? MUTED : TEXT, fontFamily: "inherit", opacity: msg.role === "loading" ? 0.6 : 1 }}>
+                    <div style={{ fontSize: 15, lineHeight: 1.9, color: msg.role === "loading" ? MUTED : TEXT, fontFamily: "inherit", opacity: msg.role === "loading" ? 0.6 : 1 }}>
                         {msg.text.split("\n").map((line, i) => line.trim() === "" ? null : (
                             <p key={i} style={{ marginBottom: line.startsWith("•") ? 10 : 6, paddingLeft: line.startsWith("•") ? 12 : 0 }}>
                                 {line}
@@ -170,12 +178,14 @@ function ChatArea({ messages, messagesEndRef }) {
 }
 
 // ─── Input Bar ────────────────────────────────────────────────────────────────
-function InputBar({ value, onChange, onSend, onKeyDown, disabled }) {
+function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile }) {
     return (
         <div style={{
-            position: "fixed", bottom: 0, left: 220, right: 0,
+            position: "fixed", bottom: 0,
+            left: isMobile ? 0 : 220, right: 0,
             background: `linear-gradient(to top, ${BG} 65%, transparent)`,
-            padding: "16px 40px 32px", display: "flex", justifyContent: "center",
+            padding: isMobile ? "12px 16px 24px" : "16px 40px 32px",
+            display: "flex", justifyContent: "center",
             zIndex: 50,
         }}>
             <div style={{ width: "100%", maxWidth: 700, display: "flex", gap: 10, alignItems: "center" }}>
@@ -280,13 +290,15 @@ export default function App() {
         setLoading(false)
     }
 
+    const isMobile = window.innerWidth < 768
+
     return (
         <div style={{ display: "flex", width: "100vw", height: "100vh", background: BG, color: TEXT, fontFamily: "'DM Sans', sans-serif", overflow: "hidden" }}>
-            <Sidebar history={history} activeId={activeId} onSelect={loadSession} onNewChat={newChat} />
+            {!isMobile && <Sidebar history={history} activeId={activeId} onSelect={loadSession} onNewChat={newChat} />}
             <main style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
                 {view === "welcome"
-                    ? <WelcomeScreen onChipClick={send} />
-                    : <ChatArea messages={messages} messagesEndRef={messagesEndRef} />
+                    ? <WelcomeScreen onChipClick={send} isMobile={isMobile} />
+                    : <ChatArea messages={messages} messagesEndRef={messagesEndRef} isMobile={isMobile} />
                 }
             </main>
             <InputBar
@@ -295,8 +307,8 @@ export default function App() {
                 onSend={() => send()}
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() } }}
                 disabled={loading}
+                isMobile={isMobile}
             />
         </div>
     )
 }
-
