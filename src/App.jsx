@@ -25,7 +25,7 @@ function cleanMarkdown(text) {
     return text
         .replace(/###\s*/g, "").replace(/##\s*/g, "").replace(/#\s*/g, "")
         .replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1")
-        .replace(/^\s*[-•]\s*/gm, "• ").replace(/\n{3,}/g, "\n\n").trim()
+        .replace(/^\s*[-•]\s*/gm, "\n• ").replace(/\n{3,}/g, "\n\n").trim()
 }
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
@@ -153,14 +153,13 @@ function ChatArea({ messages, messagesEndRef }) {
                     }}>
                         {msg.role === "user" ? "You" : msg.role === "loading" ? "Archive" : "Jabril AI"}
                     </div>
-                    <p style={{
-                        fontSize: 15, lineHeight: 1.8,
-                        color: msg.role === "loading" ? MUTED : TEXT,
-                        whiteSpace: "pre-wrap", fontFamily: "inherit",
-                        opacity: msg.role === "loading" ? 0.6 : 1,
-                    }}>
-                        {msg.text}
-                    </p>
+                    <div style={{ fontSize: 15, lineHeight: 1.9, color: msg.role === "loading" ? MUTED : TEXT, fontFamily: "inherit", opacity: msg.role === "loading" ? 0.6 : 1 }}>
+                        {msg.text.split("\n").map((line, i) => line.trim() === "" ? null : (
+                            <p key={i} style={{ marginBottom: line.startsWith("•") ? 10 : 6, paddingLeft: line.startsWith("•") ? 12 : 0 }}>
+                                {line}
+                            </p>
+                        ))}
+                    </div>
                 </div>
             ))}
             <div ref={messagesEndRef} />
