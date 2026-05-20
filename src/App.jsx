@@ -46,7 +46,7 @@ function Sidebar({ history, activeId, onSelect, onNewChat }) {
                 <button onClick={onNewChat} style={{
                     width: "100%", background: "transparent",
                     border: `1px solid ${BORDER}`, borderRadius: 8,
-                    color: TEXT, fontFamily: "inherit", fontSize: 15,
+                    color: TEXT, fontFamily: "inherit", fontSize: 13,
                     padding: "10px 12px", cursor: "pointer", textAlign: "center",
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                     transition: "border-color 0.2s, color 0.2s",
@@ -59,7 +59,7 @@ function Sidebar({ history, activeId, onSelect, onNewChat }) {
             </div>
 
             <div style={{ padding: "6px 12px 4px" }}>
-                <span style={{ fontSize: 15, color: MUTED, letterSpacing: "0.12em", textTransform: "uppercase" }}>Recent</span>
+                <span style={{ fontSize: 13, color: MUTED, letterSpacing: "0.12em", textTransform: "uppercase" }}>Recent</span>
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: "4px 8px" }}>
@@ -100,10 +100,10 @@ function WelcomeScreen({ onChipClick, isMobile }) {
                     <img src={logo} alt="Jabril AI" style={{ width: 72, height: "auto" }} />
                 </div>
             )}
-            <p style={{ color: GOLD, fontSize: 11, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>
+            <p style={{ color: GOLD, fontSize: 14, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>
                 Jabril AI
             </p>
-            <p style={{ color: MUTED, fontSize: 15, maxWidth: 380, lineHeight: 1.75, marginBottom: isMobile ? 32 : 52 }}>
+            <p style={{ color: MUTED, fontSize: 16, maxWidth: 380, lineHeight: 1.75, marginBottom: isMobile ? 32 : 52 }}>
                 A curated repository of knowledge from Black scholars, authors, and practitioners preserved in the Black Civilization Research Archive.
             </p>
             <h1 style={{
@@ -313,5 +313,4 @@ export default function App() {
     )
 }
 
-    )
 }
