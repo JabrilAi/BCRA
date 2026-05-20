@@ -144,6 +144,7 @@ function ChipButton({ label, onClick }) {
 function ChatArea({ messages, messagesEndRef }) {
     return (
         <div style={{ flex: 1, overflowY: "auto", padding: "32px 40px 180px" }}>
+            <div style={{ maxWidth: 720, margin: "0 auto" }}>
             {messages.map(msg => (
                 <div key={msg.id} style={{ padding: "20px 0", borderBottom: `1px solid ${BORDER}` }}>
                     <div style={{
@@ -163,6 +164,7 @@ function ChatArea({ messages, messagesEndRef }) {
                 </div>
             ))}
             <div ref={messagesEndRef} />
+            </div>
         </div>
     )
 }
@@ -297,3 +299,4 @@ export default function App() {
         </div>
     )
 }
+
