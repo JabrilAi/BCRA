@@ -46,7 +46,7 @@ function Sidebar({ history, activeId, onSelect, onNewChat }) {
                 <button onClick={onNewChat} style={{
                     width: "100%", background: "transparent",
                     border: `1px solid ${BORDER}`, borderRadius: 8,
-                    color: TEXT, fontFamily: "inherit", fontSize: 13,
+                    color: TEXT, fontFamily: "inherit", fontSize: 15,
                     padding: "10px 12px", cursor: "pointer", textAlign: "left",
                     display: "flex", alignItems: "center", gap: 8,
                     transition: "border-color 0.2s, color 0.2s",
