@@ -227,7 +227,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
                             <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: msg.role === "user" ? GOLD : MUTED }}>
                                 {msg.role === "user" ? "You" : msg.role === "loading" ? "Archive" : "Jabril AI"}
                             </div>
-                            {msg.role === "ai" && (
+                            {msg.role === "ai" && !isMobile && (
                                 <div style={{ display: "flex", gap: 8 }}>
                                     <button
                                         onClick={() => handleShare(msg, index)}
@@ -255,6 +255,27 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
                                 </p>
                             ))}
                         </div>
+                        {msg.role === "ai" && isMobile && (
+                            <button
+                                onClick={() => handleShare(msg, index)}
+                                style={{
+                                    marginTop: 16,
+                                    width: "100%",
+                                    background: copied[msg.id] ? "rgba(201,168,76,0.15)" : "transparent",
+                                    border: `1px solid ${GOLD}`,
+                                    borderRadius: 12,
+                                    color: GOLD,
+                                    fontSize: 15,
+                                    fontWeight: 500,
+                                    padding: "14px",
+                                    cursor: "pointer",
+                                    fontFamily: "inherit",
+                                    letterSpacing: "0.04em",
+                                }}
+                            >
+                                {copied[msg.id] ? "✓ Shared!" : "Share this Answer"}
+                            </button>
+                        )}
                     </div>
                 ))}
                 <div ref={messagesEndRef} />
