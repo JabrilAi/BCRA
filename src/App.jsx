@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react"
-import logo from "./logo.png"
+import logo from "../JAI-Logo-web.png"
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const WEBHOOK_URL = "https://anthonyai.app.n8n.cloud/webhook/11"
