@@ -200,7 +200,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
                 <div key={msg.id}
                     ref={index === messages.length - 1 ? latestMsgRef : null}
                     style={{ padding: "20px 0", borderBottom: `1px solid ${BORDER}` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", marginBottom: 10, gap: isMobile ? 8 : 0 }}>
                         <div style={{
                             fontSize: 11, fontWeight: 500, letterSpacing: "0.1em",
                             textTransform: "uppercase",
@@ -210,6 +210,41 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
                         </div>
                         {msg.role === "ai" && (
                             <div style={{ display: "flex", gap: 8 }}>
+                                <button
+                                    onClick={() => handleShare(msg, index)}
+                                    title="Share"
+                                    style={{ background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 6, color: copied[msg.id] ? GOLD : MUTED, fontSize: 11, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", transition: "color 0.2s, border-color 0.2s" }}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = copied[msg.id] ? GOLD : MUTED }}
+                                >
+                                    {copied[msg.id] ? "✓ Copied" : "Share"}
+                                </button>
+                                <button
+                                    onClick={() => printConversation(messages.slice(0, index + 1))}
+                                    title="Print"
+                                    style={{ background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 6, color: MUTED, fontSize: 11, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", transition: "color 0.2s, border-color 0.2s" }}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED }}
+                                >
+                                    Print
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    <div style={{ fontSize: 17, lineHeight: 1.9, color: msg.role === "loading" ? GOLD : TEXT, fontFamily: "inherit", opacity: msg.role === "loading" ? 0.85 : 1 }}>
+                        {msg.text.split("\n").map((line, i) => line.trim() === "" ? null : (
+                            <p key={i} style={{ marginBottom: line.startsWith("•") ? 10 : 6, paddingLeft: line.startsWith("•") ? 12 : 0 }}>
+                                {line}
+                            </p>
+                        ))}
+                    </div>
+                </div>
+            ))}
+            <div ref={messagesEndRef} />
+            </div>
+        </div>
+    )
+}
                                 <button
                                     onClick={() => handleShare(msg, index)}
                                     title="Share"
