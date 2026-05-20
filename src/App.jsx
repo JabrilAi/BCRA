@@ -103,7 +103,7 @@ function WelcomeScreen({ onChipClick, isMobile }) {
             <p style={{ color: GOLD, fontSize: 14, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>
                 Jabril AI
             </p>
-            <p style={{ color: MUTED, fontSize: 18, maxWidth: 380, lineHeight: 1.75, marginBottom: isMobile ? 32 : 52 }}>
+            <p style={{ color: MUTED, fontSize: 18, maxWidth: 400, lineHeight: 1.75, marginBottom: isMobile ? 32 : 52 }}>
                 A curated repository of knowledge from Black scholars, authors, and practitioners preserved in the Black Civilization Research Archive.
             </p>
             <h1 style={{
