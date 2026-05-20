@@ -54,17 +54,17 @@ function Sidebar({ history, activeId, onSelect, onNewChat }) {
                 onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXT }}
                 >
-                    <span style={{ fontSize: 16 }}>+</span> New Research
+                    <span style={{ fontSize: 17 }}>+</span> New Research
                 </button>
             </div>
 
             <div style={{ padding: "6px 12px 4px" }}>
-                <span style={{ fontSize: 13, color: MUTED, letterSpacing: "0.12em", textTransform: "uppercase" }}>Recent</span>
+                <span style={{ fontSize: 16, color: MUTED, letterSpacing: "0.12em", textTransform: "uppercase" }}>Recent</span>
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: "4px 8px" }}>
                 {history.length === 0 && (
-                    <p style={{ fontSize: 14, color: MUTED, padding: "8px 8px", lineHeight: 1.5 }}>
+                    <p style={{ fontSize: 16, color: MUTED, padding: "8px 8px", lineHeight: 1.5 }}>
                         Your research sessions will appear here.
                     </p>
                 )}
@@ -103,7 +103,7 @@ function WelcomeScreen({ onChipClick, isMobile }) {
             <p style={{ color: GOLD, fontSize: 14, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>
                 Jabril AI
             </p>
-            <p style={{ color: MUTED, fontSize: 16, maxWidth: 380, lineHeight: 1.75, marginBottom: isMobile ? 32 : 52 }}>
+            <p style={{ color: MUTED, fontSize: 18, maxWidth: 380, lineHeight: 1.75, marginBottom: isMobile ? 32 : 52 }}>
                 A curated repository of knowledge from Black scholars, authors, and practitioners preserved in the Black Civilization Research Archive.
             </p>
             <h1 style={{
