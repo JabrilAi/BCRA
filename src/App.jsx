@@ -100,7 +100,7 @@ function WelcomeScreen({ onChipClick, isMobile }) {
                     <img src={logo} alt="Jabril AI" style={{ width: 144, height: "auto" }} />
                 </div>
             )}
-            <p style={{ color: GOLD, fontSize: 14, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>
+            <p style={{ color: GOLD, fontSize: 19, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>
                 Jabril AI
             </p>
             <p style={{ color: TEXT, fontSize: 16, maxWidth: 380, lineHeight: 1.75, marginBottom: isMobile ? 32 : 52 }}>
@@ -320,4 +320,5 @@ export default function App() {
         </div>
     )
 }
+
 
