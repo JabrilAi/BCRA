@@ -115,24 +115,70 @@ function WelcomeScreen({ onChipClick, isMobile }) {
             }}>
                 Peace researcher!<br />How may I help you today?
             </h1>
-            {!isMobile && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", maxWidth: 700 }}>
-                {CHIPS.map(chip => (
-                    <ChipButton key={chip.id} label={chip.label} onClick={() => onChipClick(chip.prompt)} />
-                ))}
-            </div>
-            )}
+            <RotatingQuestion onAsk={onChipClick} />
         </div>
     )
 }
 
-function ChipButton({ label, onClick }) {
-    const [hovered, setHovered] = useState(false)
+const EXAMPLE_QUESTIONS = [
+    "Who were the Moors and how did they shape Europe?",
+    "What is Kemetic spirituality?",
+    "How did the Transatlantic slave trade affect Black mental health today?",
+    "What did Marcus Garvey believe?",
+    "What healing foods come from African traditions?",
+    "Who was Cheikh Anta Diop and why does he matter?",
+    "What is the connection between melanin and consciousness?",
+    "How did enslaved Africans preserve their culture?",
+    "What Black philosophers should everyone know?",
+    "How does systemic racism affect Black health outcomes?",
+]
+
+function RotatingQuestion({ onAsk }) {
+    const [index, setIndex] = useState(0)
+    const [visible, setVisible] = useState(true)
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setVisible(false)
+            setTimeout(() => {
+                setIndex(prev => (prev + 1) % EXAMPLE_QUESTIONS.length)
+                setVisible(true)
+            }, 400)
+        }, 4000)
+        return () => clearInterval(interval)
+    }, [])
+
     return (
-        <button
-            onClick={onClick}
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
+        <div style={{ textAlign: "center", marginTop: 8 }}>
+            <p style={{ color: MUTED, fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 }}>
+                Try asking
+            </p>
+            <button
+                onClick={() => onAsk(EXAMPLE_QUESTIONS[index])}
+                style={{
+                    background: "transparent",
+                    border: `1px solid ${BORDER}`,
+                    borderRadius: 100,
+                    color: TEXT,
+                    fontFamily: "'Cormorant Garamond', serif",
+                    fontStyle: "italic",
+                    fontSize: 18,
+                    padding: "12px 28px",
+                    cursor: "pointer",
+                    maxWidth: 560,
+                    lineHeight: 1.4,
+                    transition: "opacity 0.4s ease, border-color 0.2s, color 0.2s",
+                    opacity: visible ? 1 : 0,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXT }}
+            >
+                "{EXAMPLE_QUESTIONS[index]}"
+            </button>
+            <p style={{ color: MUTED, fontSize: 11, marginTop: 10 }}>or type your own question below</p>
+        </div>
+    )
+}}
             style={{
                 background: "transparent",
                 border: `1px solid ${hovered ? GOLD : BORDER}`,
