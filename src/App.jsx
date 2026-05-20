@@ -148,8 +148,51 @@ function ChipButton({ label, onClick }) {
     )
 }
 
+// ─── Share / Print helpers ────────────────────────────────────────────────────
+function shareMessage(question, answer) {
+    const text = `Jabril AI — Black Civilization Research Archive\n\nQuestion: ${question}\n\nAnswer:\n${answer}`
+    if (navigator.share) {
+        navigator.share({ title: "Jabril AI", text })
+    } else {
+        navigator.clipboard.writeText(text)
+        alert("Copied to clipboard!")
+    }
+}
+
+function printConversation(messages) {
+    const content = messages
+        .filter(m => m.role !== "loading")
+        .map(m => `<div class="${m.role}"><strong>${m.role === "user" ? "You" : "Jabril AI"}</strong><p>${m.text.replace(/\n/g, "<br/>")}</p></div>`)
+        .join("")
+    const win = window.open("", "_blank")
+    win.document.write(`
+        <html><head><title>Jabril AI — Research Session</title>
+        <style>
+            body { font-family: Georgia, serif; max-width: 720px; margin: 40px auto; padding: 0 24px; color: #111; }
+            h1 { font-size: 20px; color: #c9a84c; border-bottom: 1px solid #ddd; padding-bottom: 12px; }
+            .user { margin: 24px 0 8px; }
+            .user strong { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #c9a84c; }
+            .ai { margin: 8px 0 24px; border-bottom: 1px solid #eee; padding-bottom: 24px; }
+            .ai strong { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #888; }
+            p { line-height: 1.8; margin: 8px 0; }
+        </style></head>
+        <body><h1>Jabril AI — Black Civilization Research Archive</h1>${content}</body></html>
+    `)
+    win.document.close()
+    win.print()
+}
+
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
+    const [copied, setCopied] = useState({})
+
+    function handleShare(msg, index) {
+        const question = messages[index - 1]?.text || ""
+        shareMessage(question, msg.text)
+        setCopied(prev => ({ ...prev, [msg.id]: true }))
+        setTimeout(() => setCopied(prev => ({ ...prev, [msg.id]: false })), 2000)
+    }
+
     return (
         <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "20px 16px 160px" : "32px 40px 180px" }}>
             <div style={{ maxWidth: 720, margin: "0 auto" }}>
@@ -157,14 +200,38 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
                 <div key={msg.id}
                     ref={index === messages.length - 1 ? latestMsgRef : null}
                     style={{ padding: "20px 0", borderBottom: `1px solid ${BORDER}` }}>
-                    <div style={{
-                        fontSize: 11, fontWeight: 500, letterSpacing: "0.1em",
-                        textTransform: "uppercase", marginBottom: 10,
-                        color: msg.role === "user" ? GOLD : MUTED,
-                    }}>
-                        {msg.role === "user" ? "You" : msg.role === "loading" ? "Archive" : "Jabril AI"}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                        <div style={{
+                            fontSize: 11, fontWeight: 500, letterSpacing: "0.1em",
+                            textTransform: "uppercase",
+                            color: msg.role === "user" ? GOLD : MUTED,
+                        }}>
+                            {msg.role === "user" ? "You" : msg.role === "loading" ? "Archive" : "Jabril AI"}
+                        </div>
+                        {msg.role === "ai" && (
+                            <div style={{ display: "flex", gap: 8 }}>
+                                <button
+                                    onClick={() => handleShare(msg, index)}
+                                    title="Share"
+                                    style={{ background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 6, color: copied[msg.id] ? GOLD : MUTED, fontSize: 11, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", transition: "color 0.2s, border-color 0.2s" }}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = copied[msg.id] ? GOLD : MUTED }}
+                                >
+                                    {copied[msg.id] ? "✓ Copied" : "Share"}
+                                </button>
+                                <button
+                                    onClick={() => printConversation(messages.slice(0, index + 1))}
+                                    title="Print"
+                                    style={{ background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 6, color: MUTED, fontSize: 11, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", transition: "color 0.2s, border-color 0.2s" }}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED }}
+                                >
+                                    Print
+                                </button>
+                            </div>
+                        )}
                     </div>
-                    <div style={{ fontSize: msg.role === "loading" ? 17 : 17, lineHeight: 1.9, color: msg.role === "loading" ? GOLD : TEXT, fontFamily: "inherit", opacity: msg.role === "loading" ? 0.85 : 1 }}>
+                    <div style={{ fontSize: 17, lineHeight: 1.9, color: msg.role === "loading" ? GOLD : TEXT, fontFamily: "inherit", opacity: msg.role === "loading" ? 0.85 : 1 }}>
                         {msg.text.split("\n").map((line, i) => line.trim() === "" ? null : (
                             <p key={i} style={{ marginBottom: line.startsWith("•") ? 10 : 6, paddingLeft: line.startsWith("•") ? 12 : 0 }}>
                                 {line}
@@ -320,5 +387,3 @@ export default function App() {
         </div>
     )
 }
-
-
