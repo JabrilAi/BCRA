@@ -178,20 +178,6 @@ function RotatingQuestion({ onAsk }) {
             <p style={{ color: MUTED, fontSize: 11, marginTop: 10 }}>or type your own question below</p>
         </div>
     )
-}}
-            style={{
-                background: "transparent",
-                border: `1px solid ${hovered ? GOLD : BORDER}`,
-                borderRadius: 100, color: hovered ? GOLD : TEXT,
-                fontFamily: "inherit", fontSize: 13,
-                padding: "10px 20px", cursor: "pointer",
-                transition: "border-color 0.2s, color 0.2s",
-                whiteSpace: "nowrap",
-            }}
-        >
-            {label}
-        </button>
-    )
 }
 
 // ─── Share / Print helpers ────────────────────────────────────────────────────
