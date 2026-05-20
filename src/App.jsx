@@ -46,9 +46,9 @@ function Sidebar({ history, activeId, onSelect, onNewChat }) {
                 <button onClick={onNewChat} style={{
                     width: "100%", background: "transparent",
                     border: `1px solid ${BORDER}`, borderRadius: 8,
-                    color: TEXT, fontFamily: "inherit", fontSize: 15,
-                    padding: "10px 12px", cursor: "pointer", textAlign: "left",
-                    display: "flex", alignItems: "center", gap: 8,
+                    color: TEXT, fontFamily: "inherit", fontSize: 13,
+                    padding: "10px 12px", cursor: "pointer", textAlign: "center",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                     transition: "border-color 0.2s, color 0.2s",
                 }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
@@ -59,12 +59,12 @@ function Sidebar({ history, activeId, onSelect, onNewChat }) {
             </div>
 
             <div style={{ padding: "6px 12px 4px" }}>
-                <span style={{ fontSize: 10, color: MUTED, letterSpacing: "0.12em", textTransform: "uppercase" }}>Recent</span>
+                <span style={{ fontSize: 12, color: MUTED, letterSpacing: "0.12em", textTransform: "uppercase" }}>Recent</span>
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: "4px 8px" }}>
                 {history.length === 0 && (
-                    <p style={{ fontSize: 12, color: MUTED, padding: "8px 8px", lineHeight: 1.5 }}>
+                    <p style={{ fontSize: 14, color: MUTED, padding: "8px 8px", lineHeight: 1.5 }}>
                         Your research sessions will appear here.
                     </p>
                 )}
@@ -162,7 +162,7 @@ function ChatArea({ messages, messagesEndRef, isMobile }) {
                     }}>
                         {msg.role === "user" ? "You" : msg.role === "loading" ? "Archive" : "Jabril AI"}
                     </div>
-                    <div style={{ fontSize: 15, lineHeight: 1.9, color: msg.role === "loading" ? MUTED : TEXT, fontFamily: "inherit", opacity: msg.role === "loading" ? 0.6 : 1 }}>
+                    <div style={{ fontSize: msg.role === "loading" ? 17 : 17, lineHeight: 1.9, color: msg.role === "loading" ? GOLD : TEXT, fontFamily: "inherit", opacity: msg.role === "loading" ? 0.85 : 1 }}>
                         {msg.text.split("\n").map((line, i) => line.trim() === "" ? null : (
                             <p key={i} style={{ marginBottom: line.startsWith("•") ? 10 : 6, paddingLeft: line.startsWith("•") ? 12 : 0 }}>
                                 {line}
@@ -310,5 +310,8 @@ export default function App() {
                 isMobile={isMobile}
             />
         </div>
+    )
+}
+
     )
 }
