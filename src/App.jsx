@@ -5,7 +5,7 @@ import logo from "../JAI-Logo-web.png"
 // ─── Supabase ────────────────────────────────────────────────────────────────
 const supabase = createClient(
     "https://nixpunwfkmnsxkqfhzcc.supabase.co",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...xd2gNzXItM_yfhKe1nwnjBO4sDFyoyU5b3dFeqRdnyw"
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5peHB1bndma21uc3hrcWZoemNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MDAwMDcsImV4cCI6MjA5NDk3NjAwN30.xd2gNzXItM_yfhKe1nwnjBO4sDFyoyU5b3dFeqRdnyw"
     // ⚠️  Replace the key above with your full anon key from Supabase → Project Settings → API
 )
 
