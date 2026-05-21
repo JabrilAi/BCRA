@@ -404,7 +404,7 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile }) {
 }
 
 // ─── Quota Bar ────────────────────────────────────────────────────────────────
-function QuotaBar({ used, isLoggedIn, isMobile }) {
+function QuotaBar({ used, isLoggedIn, isMobile, onRegisterClick }) {
     const remaining = FREE_LIMIT - used
     const pct = Math.min((used / FREE_LIMIT) * 100, 100)
     const isLow = remaining <= 3 && remaining > 0
@@ -414,13 +414,31 @@ function QuotaBar({ used, isLoggedIn, isMobile }) {
 
     return (
         <div style={{
-            padding: "8px 20px", borderBottom: `1px solid ${BORDER}`,
-            background: PANEL, display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+            padding: isMobile ? "10px 14px" : "10px 24px",
+            borderBottom: `1px solid ${BORDER}`,
+            background: PANEL,
+            display: "flex", alignItems: "center",
+            gap: isMobile ? 8 : 14,
+            flexShrink: 0,
+            flexWrap: isMobile ? "wrap" : "nowrap",
         }}>
-            <span style={{ fontSize: 12, color: MUTED, whiteSpace: "nowrap" }}>
-                {used}/{FREE_LIMIT} free questions
+            {/* Explanation text */}
+            <span style={{
+                fontSize: isMobile ? 11 : 12,
+                color: TEXT,
+                whiteSpace: "nowrap",
+                fontWeight: 500,
+            }}>
+                {used === 0
+                    ? "✦ Try 10 free questions — no account needed"
+                    : isLow
+                        ? `⚠ Only ${remaining} free question${remaining !== 1 ? "s" : ""} remaining`
+                        : `${used} of ${FREE_LIMIT} free questions used`
+                }
             </span>
-            <div style={{ flex: 1, height: 3, background: BORDER, borderRadius: 2, overflow: "hidden" }}>
+
+            {/* Progress bar */}
+            <div style={{ flex: 1, minWidth: 60, height: 4, background: BORDER, borderRadius: 2, overflow: "hidden" }}>
                 <div style={{
                     height: "100%", borderRadius: 2,
                     width: `${pct}%`,
@@ -428,11 +446,29 @@ function QuotaBar({ used, isLoggedIn, isMobile }) {
                     transition: "width 0.4s ease",
                 }} />
             </div>
-            {isLow && (
-                <span style={{ fontSize: 11, color: "#c0392b", whiteSpace: "nowrap" }}>
-                    {remaining} left
-                </span>
-            )}
+
+            {/* Register Free button */}
+            <button
+                onClick={onRegisterClick}
+                style={{
+                    background: "transparent",
+                    border: `1px solid ${GOLD}`,
+                    borderRadius: 6,
+                    color: GOLD,
+                    fontFamily: "inherit",
+                    fontSize: isMobile ? 11 : 12,
+                    fontWeight: 600,
+                    padding: isMobile ? "5px 10px" : "6px 14px",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    letterSpacing: "0.04em",
+                    transition: "background 0.2s, color 0.2s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = GOLD; e.currentTarget.style.color = "#0f0f0f" }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = GOLD }}
+            >
+                Register Free →
+            </button>
         </div>
     )
 }
@@ -812,7 +848,7 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
             )}
 
             <main style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
-                <QuotaBar used={questionsUsed} isLoggedIn={!!user} isMobile={isMobile} />
+                <QuotaBar used={questionsUsed} isLoggedIn={!!user} isMobile={isMobile} onRegisterClick={() => setShowGate(true)} />
                 {view === "welcome"
                     ? <WelcomeScreen onChipClick={send} isMobile={isMobile} />
                     : <ChatArea messages={messages} messagesEndRef={messagesEndRef} latestMsgRef={latestMsgRef} isMobile={isMobile} />
