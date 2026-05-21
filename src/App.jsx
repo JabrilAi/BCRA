@@ -263,7 +263,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
                                         background: "transparent",
                                         border: `1px solid ${BORDER}`,
                                         borderRadius: 6,
-                                        color: copied[msg.id] ? GOLD : MUTED,
+                                        color: copied[msg.id] ? GOLD : "#9a9590",
                                         fontSize: 13,
                                         fontWeight: 500,
                                         padding: "6px 16px",
