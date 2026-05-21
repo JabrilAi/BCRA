@@ -1,6 +1,70 @@
 import { useState, useRef, useEffect } from "react"
+import { createClient } from "@supabase/supabase-js"
 import logo from "../JAI-Logo-web.png"
 
+// ─── Supabase ────────────────────────────────────────────────────────────────
+const supabase = createClient(
+    "https://nixpunwfkmnsxkqfhzcc.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...xd2gNzXItM_yfhKe1nwnjBO4sDFyoyU5b3dFeqRdnyw"
+    // ⚠️  Replace the key above with your full anon key from Supabase → Project Settings → API
+)
+
+const FREE_LIMIT = 10
+
+// ─── Supabase helpers ────────────────────────────────────────────────────────
+async function ensureProfile(user) {
+    const { data } = await supabase.from("profiles").select("id").eq("id", user.id).single()
+    if (!data) {
+        await supabase.from("profiles").insert({ id: user.id, email: user.email, questions_used: 0 })
+    }
+}
+
+async function getQuestionsUsed(userId) {
+    const { data } = await supabase.from("profiles").select("questions_used").eq("id", userId).single()
+    return data?.questions_used ?? 0
+}
+
+async function incrementQuestions(userId) {
+    const { data } = await supabase.from("profiles").select("questions_used").eq("id", userId).single()
+    const next = (data?.questions_used ?? 0) + 1
+    await supabase.from("profiles").update({ questions_used: next }).eq("id", userId)
+    return next
+}
+
+async function dbGetSessions(userId) {
+    const { data } = await supabase
+        .from("chat_sessions")
+        .select("id, title, created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(20)
+    return data ?? []
+}
+
+async function dbCreateSession(userId, title) {
+    const { data, error } = await supabase
+        .from("chat_sessions")
+        .insert({ user_id: userId, title })
+        .select("id, title, created_at")
+        .single()
+    if (error) throw error
+    return data
+}
+
+async function dbGetMessages(sessionId) {
+    const { data } = await supabase
+        .from("chat_messages")
+        .select("id, role, content, created_at")
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: true })
+    return data ?? []
+}
+
+async function dbSaveMessage(sessionId, role, content) {
+    await supabase.from("chat_messages").insert({ session_id: sessionId, role, content })
+}
+
+// ─── Constants & utilities (unchanged) ───────────────────────────────────────
 const WEBHOOK_URL = "https://anthonyai.app.n8n.cloud/webhook/11"
 const GOLD   = "#c9a84c"
 const BG     = "#0f0f0f"
@@ -72,6 +136,8 @@ function printConversation(messages) {
     win.print()
 }
 
+// ─── Existing UI components (unchanged) ──────────────────────────────────────
+
 function RotatingQuestion({ onAsk }) {
     const [index, setIndex] = useState(0)
     const [visible, setVisible] = useState(true)
@@ -119,7 +185,7 @@ function RotatingQuestion({ onAsk }) {
     )
 }
 
-function Sidebar({ history, activeId, onSelect, onNewChat }) {
+function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
     return (
         <aside style={{
             width: 220, minWidth: 220,
@@ -168,6 +234,26 @@ function Sidebar({ history, activeId, onSelect, onNewChat }) {
                         {item.title}
                     </button>
                 ))}
+            </div>
+            {/* User footer */}
+            <div style={{ padding: "12px", borderTop: `1px solid ${BORDER}` }}>
+                <p style={{ fontSize: 11, color: MUTED, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 8 }}>
+                    {user?.email}
+                </p>
+                <button
+                    onClick={onSignOut}
+                    style={{
+                        width: "100%", background: "transparent",
+                        border: `1px solid ${BORDER}`, borderRadius: 6,
+                        color: MUTED, fontFamily: "inherit", fontSize: 12,
+                        padding: "7px 10px", cursor: "pointer",
+                        transition: "border-color 0.2s, color 0.2s",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = "#c0392b"; e.currentTarget.style.color = "#c0392b" }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED }}
+                >
+                    Sign Out
+                </button>
             </div>
         </aside>
     )
@@ -283,7 +369,34 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
     )
 }
 
-function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile }) {
+function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, exhausted }) {
+    if (exhausted) {
+        return (
+            <div style={{
+                position: "fixed", bottom: 0,
+                left: isMobile ? 0 : 220, right: 0,
+                background: `linear-gradient(to top, ${BG} 65%, transparent)`,
+                padding: isMobile ? "12px 16px 24px" : "16px 40px 32px",
+                display: "flex", justifyContent: "center",
+                zIndex: 50,
+            }}>
+                <div style={{
+                    width: "100%", maxWidth: 700,
+                    border: `1px solid ${GOLD}`, borderRadius: 12,
+                    padding: "16px 20px", textAlign: "center",
+                    background: "rgba(201,168,76,0.06)",
+                }}>
+                    <p style={{ color: GOLD, fontSize: 14, marginBottom: 4, fontWeight: 500 }}>
+                        You've used all {FREE_LIMIT} free questions
+                    </p>
+                    <p style={{ color: MUTED, fontSize: 13 }}>
+                        Upgrade to continue your research with the Archive.
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div style={{
             position: "fixed", bottom: 0,
@@ -329,16 +442,187 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile }) {
     )
 }
 
-export default function App() {
-    const [view, setView]         = useState("welcome")
-    const [messages, setMessages] = useState([])
-    const [history, setHistory]   = useState([])
-    const [activeId, setActiveId] = useState(null)
-    const [prompt, setPrompt]     = useState("")
-    const [loading, setLoading]   = useState(false)
-    const messagesEndRef           = useRef(null)
-    const latestMsgRef             = useRef(null)
+// ─── Auth Screen ──────────────────────────────────────────────────────────────
+function AuthScreen({ onAuth }) {
+    const [tab, setTab]         = useState("login")
+    const [email, setEmail]     = useState("")
+    const [password, setPass]   = useState("")
+    const [name, setName]       = useState("")
+    const [loading, setLoading] = useState(false)
+    const [error, setError]     = useState("")
+    const [success, setSuccess] = useState("")
 
+    async function submit() {
+        setError(""); setSuccess(""); setLoading(true)
+        try {
+            if (tab === "login") {
+                const { data, error: e } = await supabase.auth.signInWithPassword({ email, password })
+                if (e) throw e
+                await ensureProfile(data.user)
+                onAuth(data.user)
+            } else {
+                const { data, error: e } = await supabase.auth.signUp({
+                    email, password,
+                    options: { data: { full_name: name } },
+                })
+                if (e) throw e
+                if (data.user && !data.session) {
+                    setSuccess("Check your email to confirm your account, then sign in.")
+                    setTab("login")
+                } else if (data.user) {
+                    await ensureProfile(data.user)
+                    onAuth(data.user)
+                }
+            }
+        } catch(e) {
+            setError(e.message || "Something went wrong.")
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const onKey = e => { if (e.key === "Enter") submit() }
+
+    const inputStyle = {
+        width: "100%", background: "#0f0f0f",
+        border: `1px solid ${BORDER}`, borderRadius: 8,
+        color: TEXT, fontFamily: "'DM Sans', sans-serif",
+        fontSize: 14, padding: "11px 14px", outline: "none",
+        boxSizing: "border-box",
+    }
+
+    return (
+        <div style={{
+            minHeight: "100vh", display: "flex",
+            alignItems: "center", justifyContent: "center",
+            background: BG, fontFamily: "'DM Sans', sans-serif",
+        }}>
+            <div style={{
+                width: "100%", maxWidth: 400,
+                background: PANEL, border: `1px solid ${BORDER}`,
+                borderRadius: 16, padding: "40px 36px",
+                margin: "0 16px",
+            }}>
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+                    <img src={logo} alt="Jabril AI" style={{ width: 100, height: "auto" }} />
+                </div>
+                <p style={{ color: MUTED, fontSize: 14, textAlign: "center", marginBottom: 28 }}>
+                    Black Civilization Research Archive
+                </p>
+
+                {/* Tabs */}
+                <div style={{ display: "flex", gap: 2, background: BG, borderRadius: 8, padding: 3, marginBottom: 24 }}>
+                    {["login", "signup"].map(t => (
+                        <button key={t} onClick={() => { setTab(t); setError(""); setSuccess("") }} style={{
+                            flex: 1, padding: "9px", border: "none", borderRadius: 6,
+                            background: tab === t ? PANEL : "transparent",
+                            color: tab === t ? TEXT : MUTED,
+                            fontFamily: "inherit", fontSize: 13, fontWeight: 500,
+                            cursor: "pointer", transition: "all 0.2s",
+                        }}>
+                            {t === "login" ? "Sign In" : "Create Account"}
+                        </button>
+                    ))}
+                </div>
+
+                {error   && <p style={{ color: "#e74c3c", background: "#e74c3c18", border: "1px solid #e74c3c30", borderRadius: 6, padding: "9px 12px", fontSize: 13, marginBottom: 14 }}>{error}</p>}
+                {success && <p style={{ color: "#27ae60", background: "#27ae6018", border: "1px solid #27ae6030", borderRadius: 6, padding: "9px 12px", fontSize: 13, marginBottom: 14 }}>{success}</p>}
+
+                {tab === "signup" && (
+                    <div style={{ marginBottom: 14 }}>
+                        <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6 }}>Full Name</label>
+                        <input type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} onKeyDown={onKey} style={inputStyle} />
+                    </div>
+                )}
+                <div style={{ marginBottom: 14 }}>
+                    <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6 }}>Email</label>
+                    <input type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={onKey} style={inputStyle} />
+                </div>
+                <div style={{ marginBottom: 20 }}>
+                    <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6 }}>Password</label>
+                    <input type="password" placeholder={tab === "signup" ? "Min. 6 characters" : "Your password"} value={password} onChange={e => setPass(e.target.value)} onKeyDown={onKey} style={inputStyle} />
+                </div>
+                <button
+                    onClick={submit}
+                    disabled={loading || !email || !password}
+                    style={{
+                        width: "100%", padding: "13px", border: "none", borderRadius: 8,
+                        background: GOLD, color: "#0f0f0f",
+                        fontFamily: "inherit", fontSize: 14, fontWeight: 600,
+                        cursor: loading || !email || !password ? "not-allowed" : "pointer",
+                        opacity: loading || !email || !password ? 0.6 : 1,
+                        transition: "opacity 0.2s",
+                    }}
+                >
+                    {loading ? "Please wait…" : tab === "login" ? "Sign In" : "Create Account"}
+                </button>
+            </div>
+        </div>
+    )
+}
+
+// ─── Quota Bar ────────────────────────────────────────────────────────────────
+function QuotaBar({ used, isMobile }) {
+    const remaining = FREE_LIMIT - used
+    const pct = Math.min((used / FREE_LIMIT) * 100, 100)
+    const isLow = remaining <= 3
+
+    return (
+        <div style={{
+            padding: "8px 20px",
+            borderBottom: `1px solid ${BORDER}`,
+            background: PANEL,
+            display: "flex", alignItems: "center", gap: 12,
+            flexShrink: 0,
+        }}>
+            <span style={{ fontSize: 12, color: MUTED, whiteSpace: "nowrap" }}>
+                {used}/{FREE_LIMIT} free questions
+            </span>
+            <div style={{ flex: 1, height: 3, background: BORDER, borderRadius: 2, overflow: "hidden" }}>
+                <div style={{
+                    height: "100%", borderRadius: 2,
+                    width: `${pct}%`,
+                    background: isLow ? "#c0392b" : GOLD,
+                    transition: "width 0.4s ease",
+                }} />
+            </div>
+            {isLow && remaining > 0 && (
+                <span style={{ fontSize: 11, color: "#c0392b", whiteSpace: "nowrap" }}>
+                    {remaining} left
+                </span>
+            )}
+        </div>
+    )
+}
+
+// ─── Main App (authenticated) ─────────────────────────────────────────────────
+function MainApp({ user, onSignOut }) {
+    const [view, setView]                   = useState("welcome")
+    const [messages, setMessages]           = useState([])
+    const [history, setHistory]             = useState([])
+    const [activeId, setActiveId]           = useState(null)
+    const [prompt, setPrompt]               = useState("")
+    const [loading, setLoading]             = useState(false)
+    const [questionsUsed, setQuestionsUsed] = useState(0)
+    const [booting, setBooting]             = useState(true)
+    const messagesEndRef                    = useRef(null)
+    const latestMsgRef                      = useRef(null)
+
+    // Load sessions + quota on mount
+    useEffect(() => {
+        async function boot() {
+            const [sessions, used] = await Promise.all([
+                dbGetSessions(user.id),
+                getQuestionsUsed(user.id),
+            ])
+            setHistory(sessions)
+            setQuestionsUsed(used)
+            setBooting(false)
+        }
+        boot()
+    }, [user.id])
+
+    // Scroll on new messages
     useEffect(() => {
         if (view === "chat") {
             setTimeout(() => {
@@ -351,30 +635,42 @@ export default function App() {
         setActiveId(null); setMessages([]); setPrompt(""); setView("welcome")
     }
 
-    function loadSession(id) {
-        const s = history.find(h => h.id === id)
-        if (!s) return
-        setActiveId(id); setMessages(s.messages); setView("chat")
-    }
-
-    function updateHistory(id, title, msgs) {
-        setHistory(prev => {
-            const i = prev.findIndex(h => h.id === id)
-            if (i >= 0) { const u = [...prev]; u[i] = { ...u[i], messages: msgs }; return u }
-            return [{ id, title, messages: msgs }, ...prev].slice(0, 20)
-        })
+    async function loadSession(id) {
+        const session = history.find(h => h.id === id)
+        if (!session) return
+        setActiveId(id)
+        setView("chat")
+        const dbMsgs = await dbGetMessages(id)
+        const converted = dbMsgs.map(m => ({
+            id: m.id,
+            role: m.role === "assistant" ? "ai" : m.role,
+            text: m.content,
+        }))
+        setMessages(converted)
     }
 
     async function send(queryOverride) {
         const query = (queryOverride || prompt).trim()
         if (!query || query.length < 2 || loading) return
-        setPrompt(""); setLoading(true)
-        const sessionId = activeId || `id-${Date.now()}`
-        if (!activeId) setActiveId(sessionId)
-        setView("chat")
+        if (questionsUsed >= FREE_LIMIT) return
+
+        setPrompt(""); setLoading(true); setView("chat")
+
+        let sessionId = activeId
+        if (!sessionId) {
+            const title = query.slice(0, 60) + (query.length > 60 ? "…" : "")
+            const newSession = await dbCreateSession(user.id, title)
+            sessionId = newSession.id
+            setActiveId(sessionId)
+            setHistory(prev => [newSession, ...prev])
+        }
+
         const userMsg    = { id: `u-${Date.now()}`, role: "user",    text: query }
         const loadingMsg = { id: `l-${Date.now()}`, role: "loading", text: "Consulting the Archive..." }
-        setMessages(prev => { const n = [...prev, userMsg, loadingMsg]; updateHistory(sessionId, query, n); return n })
+        setMessages(prev => [...prev, userMsg, loadingMsg])
+
+        await dbSaveMessage(sessionId, "user", query)
+
         try {
             const res = await fetch(WEBHOOK_URL, {
                 method: "POST", headers: { "Content-Type": "application/json" },
@@ -388,21 +684,47 @@ export default function App() {
                 clean = p.output || p.text || (Array.isArray(p) ? (p[0].output || p[0].text) : raw)
             } catch(e) {}
             clean = cleanMarkdown(clean)
+
             const aiMsg = { id: `a-${Date.now()}`, role: "ai", text: clean }
-            setMessages(prev => { const n = [...prev.filter(m => m.role !== "loading"), aiMsg]; updateHistory(sessionId, query, n); return n })
+            setMessages(prev => [...prev.filter(m => m.role !== "loading"), aiMsg])
+
+            await dbSaveMessage(sessionId, "assistant", clean)
+            const newCount = await incrementQuestions(user.id)
+            setQuestionsUsed(newCount)
+
         } catch(e) {
             const errMsg = { id: `e-${Date.now()}`, role: "ai", text: "Connection to the Archive interrupted. Please try again." }
-            setMessages(prev => { const n = [...prev.filter(m => m.role !== "loading"), errMsg]; updateHistory(sessionId, query, n); return n })
+            setMessages(prev => [...prev.filter(m => m.role !== "loading"), errMsg])
         }
+
         setLoading(false)
     }
 
-    const isMobile = window.innerWidth < 768
+    const isMobile    = window.innerWidth < 768
+    const isExhausted = questionsUsed >= FREE_LIMIT
+
+    if (booting) {
+        return (
+            <div style={{ display: "flex", width: "100vw", height: "100vh", background: BG, alignItems: "center", justifyContent: "center" }}>
+                <img src={logo} alt="Jabril AI" style={{ width: 80, opacity: 0.6 }} />
+            </div>
+        )
+    }
 
     return (
         <div style={{ display: "flex", width: "100vw", height: "100vh", background: BG, color: TEXT, fontFamily: "'DM Sans', sans-serif", overflow: "hidden" }}>
-            {!isMobile && <Sidebar history={history} activeId={activeId} onSelect={loadSession} onNewChat={newChat} />}
+            {!isMobile && (
+                <Sidebar
+                    history={history}
+                    activeId={activeId}
+                    onSelect={loadSession}
+                    onNewChat={newChat}
+                    user={user}
+                    onSignOut={onSignOut}
+                />
+            )}
             <main style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
+                <QuotaBar used={questionsUsed} isMobile={isMobile} />
                 {view === "welcome"
                     ? <WelcomeScreen onChipClick={send} isMobile={isMobile} />
                     : <ChatArea messages={messages} messagesEndRef={messagesEndRef} latestMsgRef={latestMsgRef} isMobile={isMobile} />
@@ -413,9 +735,43 @@ export default function App() {
                 onChange={e => setPrompt(e.target.value)}
                 onSend={() => send()}
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() } }}
-                disabled={loading}
+                disabled={loading || isExhausted}
                 isMobile={isMobile}
+                exhausted={isExhausted}
             />
         </div>
     )
 }
+
+// ─── Root ─────────────────────────────────────────────────────────────────────
+export default function App() {
+    const [user, setUser] = useState(undefined)
+
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data }) => {
+            setUser(data.session?.user ?? null)
+        })
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user ?? null)
+        })
+        return () => subscription.unsubscribe()
+    }, [])
+
+    async function handleSignOut() {
+        await supabase.auth.signOut()
+        setUser(null)
+    }
+
+    if (user === undefined) {
+        return (
+            <div style={{ display: "flex", width: "100vw", height: "100vh", background: BG, alignItems: "center", justifyContent: "center" }}>
+                <img src={logo} alt="Jabril AI" style={{ width: 100, opacity: 0.7 }} />
+            </div>
+        )
+    }
+
+    if (!user) return <AuthScreen onAuth={setUser} />
+
+    return <MainApp user={user} onSignOut={handleSignOut} />
+}
+
