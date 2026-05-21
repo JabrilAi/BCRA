@@ -217,7 +217,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
     }
 
     return (
-        <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "20px 16px 160px" : "32px 40px 180px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "20px 16px 200px" : "32px 40px 180px" }}>
             <div style={{ maxWidth: 720, margin: "0 auto" }}>
                 {messages.map((msg, index) => (
                     <div key={msg.id}
@@ -256,25 +256,24 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
                             ))}
                         </div>
                         {msg.role === "ai" && isMobile && (
-                            <button
-                                onClick={() => handleShare(msg, index)}
-                                style={{
-                                    marginTop: 16,
-                                    width: "100%",
-                                    background: copied[msg.id] ? "rgba(201,168,76,0.15)" : "transparent",
-                                    border: `1px solid ${GOLD}`,
-                                    borderRadius: 12,
-                                    color: GOLD,
-                                    fontSize: 15,
-                                    fontWeight: 500,
-                                    padding: "14px",
-                                    cursor: "pointer",
-                                    fontFamily: "inherit",
-                                    letterSpacing: "0.04em",
-                                }}
-                            >
-                                {copied[msg.id] ? "✓ Shared!" : "Share this Answer"}
-                            </button>
+                            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16, marginBottom: 8 }}>
+                                <button
+                                    onClick={() => handleShare(msg, index)}
+                                    style={{
+                                        background: "transparent",
+                                        border: `1px solid ${BORDER}`,
+                                        borderRadius: 6,
+                                        color: copied[msg.id] ? GOLD : MUTED,
+                                        fontSize: 13,
+                                        fontWeight: 500,
+                                        padding: "6px 16px",
+                                        cursor: "pointer",
+                                        fontFamily: "inherit",
+                                    }}
+                                >
+                                    {copied[msg.id] ? "✓ Shared" : "Share"}
+                                </button>
+                            </div>
                         )}
                     </div>
                 ))}
