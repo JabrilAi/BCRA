@@ -6,19 +6,22 @@ import logo from "../JAI-Logo-web.png"
 const supabase = createClient(
     "https://nixpunwfkmnsxkqfhzcc.supabase.co",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5peHB1bndma21uc3hrcWZoemNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MDAwMDcsImV4cCI6MjA5NDk3NjAwN30.xd2gNzXItM_yfhKe1nwnjBO4sDFyoyU5b3dFeqRdnyw"
-    // ⚠️  Replace the key above with your full anon key from Supabase → Project Settings → API
 )
 
 const FREE_LIMIT = 10
+const STORAGE_KEY = "jabrilai_questions_used"
 
-// ─── Supabase helpers ────────────────────────────────────────────────────────
-async function ensureProfile(user) {
-    const { data } = await supabase.from("profiles").select("id").eq("id", user.id).single()
-    if (!data) {
-        await supabase.from("profiles").insert({ id: user.id, email: user.email, questions_used: 0 })
-    }
+// ─── Anonymous question counter (browser storage) ────────────────────────────
+function getAnonCount() {
+    return parseInt(localStorage.getItem(STORAGE_KEY) || "0", 10)
+}
+function incrementAnonCount() {
+    const next = getAnonCount() + 1
+    localStorage.setItem(STORAGE_KEY, String(next))
+    return next
 }
 
+// ─── Supabase helpers (for logged-in users) ───────────────────────────────────
 async function getQuestionsUsed(userId) {
     const { data } = await supabase.from("profiles").select("questions_used").eq("id", userId).single()
     return data?.questions_used ?? 0
@@ -136,7 +139,7 @@ function printConversation(messages) {
     win.print()
 }
 
-// ─── Existing UI components (unchanged) ──────────────────────────────────────
+// ─── UI Components (unchanged) ───────────────────────────────────────────────
 
 function RotatingQuestion({ onAsk }) {
     const [index, setIndex] = useState(0)
@@ -161,17 +164,10 @@ function RotatingQuestion({ onAsk }) {
             <button
                 onClick={() => onAsk(EXAMPLE_QUESTIONS[index])}
                 style={{
-                    background: "transparent",
-                    border: "none",
-                    borderRadius: 100,
-                    color: TEXT,
-                    fontFamily: "'Cormorant Garamond', serif",
-                    fontStyle: "italic",
-                    fontSize: 18,
-                    padding: "12px 28px",
-                    cursor: "pointer",
-                    maxWidth: 560,
-                    lineHeight: 1.4,
+                    background: "transparent", border: "none", borderRadius: 100,
+                    color: TEXT, fontFamily: "'Cormorant Garamond', serif",
+                    fontStyle: "italic", fontSize: 18, padding: "12px 28px",
+                    cursor: "pointer", maxWidth: 560, lineHeight: 1.4,
                     transition: "opacity 0.4s ease, color 0.2s",
                     opacity: visible ? 1 : 0,
                 }}
@@ -188,11 +184,9 @@ function RotatingQuestion({ onAsk }) {
 function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
     return (
         <aside style={{
-            width: 220, minWidth: 220,
-            background: PANEL,
-            borderRight: `1px solid ${BORDER}`,
-            display: "flex", flexDirection: "column",
-            height: "100vh", overflowY: "auto", flexShrink: 0,
+            width: 220, minWidth: 220, background: PANEL,
+            borderRight: `1px solid ${BORDER}`, display: "flex",
+            flexDirection: "column", height: "100vh", overflowY: "auto", flexShrink: 0,
         }}>
             <div style={{ padding: "24px 20px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "center" }}>
                 <img src={logo} alt="Jabril AI" style={{ width: 80, height: "auto" }} />
@@ -235,7 +229,6 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
                     </button>
                 ))}
             </div>
-            {/* User footer */}
             <div style={{ padding: "12px", borderTop: `1px solid ${BORDER}` }}>
                 <p style={{ fontSize: 11, color: MUTED, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 8 }}>
                     {user?.email}
@@ -346,15 +339,10 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
                                 <button
                                     onClick={() => handleShare(msg, index)}
                                     style={{
-                                        background: "transparent",
-                                        border: `1px solid ${BORDER}`,
-                                        borderRadius: 6,
-                                        color: copied[msg.id] ? GOLD : "#9a9590",
-                                        fontSize: 13,
-                                        fontWeight: 500,
-                                        padding: "6px 16px",
-                                        cursor: "pointer",
-                                        fontFamily: "inherit",
+                                        background: "transparent", border: `1px solid ${BORDER}`,
+                                        borderRadius: 6, color: copied[msg.id] ? GOLD : "#9a9590",
+                                        fontSize: 13, fontWeight: 500, padding: "6px 16px",
+                                        cursor: "pointer", fontFamily: "inherit",
                                     }}
                                 >
                                     {copied[msg.id] ? "✓ Shared" : "Share"}
@@ -369,34 +357,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
     )
 }
 
-function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, exhausted }) {
-    if (exhausted) {
-        return (
-            <div style={{
-                position: "fixed", bottom: 0,
-                left: isMobile ? 0 : 220, right: 0,
-                background: `linear-gradient(to top, ${BG} 65%, transparent)`,
-                padding: isMobile ? "12px 16px 24px" : "16px 40px 32px",
-                display: "flex", justifyContent: "center",
-                zIndex: 50,
-            }}>
-                <div style={{
-                    width: "100%", maxWidth: 700,
-                    border: `1px solid ${GOLD}`, borderRadius: 12,
-                    padding: "16px 20px", textAlign: "center",
-                    background: "rgba(201,168,76,0.06)",
-                }}>
-                    <p style={{ color: GOLD, fontSize: 14, marginBottom: 4, fontWeight: 500 }}>
-                        You've used all {FREE_LIMIT} free questions
-                    </p>
-                    <p style={{ color: MUTED, fontSize: 13 }}>
-                        Upgrade to continue your research with the Archive.
-                    </p>
-                </div>
-            </div>
-        )
-    }
-
+function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile }) {
     return (
         <div style={{
             position: "fixed", bottom: 0,
@@ -442,37 +403,63 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, exha
     )
 }
 
-// ─── Auth Screen ──────────────────────────────────────────────────────────────
-function AuthScreen({ onAuth }) {
-    const [tab, setTab]         = useState("login")
+// ─── Quota Bar ────────────────────────────────────────────────────────────────
+function QuotaBar({ used, isLoggedIn, isMobile }) {
+    const remaining = FREE_LIMIT - used
+    const pct = Math.min((used / FREE_LIMIT) * 100, 100)
+    const isLow = remaining <= 3 && remaining > 0
+
+    // Don't show for logged-in users (they have unlimited)
+    if (isLoggedIn) return null
+
+    return (
+        <div style={{
+            padding: "8px 20px", borderBottom: `1px solid ${BORDER}`,
+            background: PANEL, display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+        }}>
+            <span style={{ fontSize: 12, color: MUTED, whiteSpace: "nowrap" }}>
+                {used}/{FREE_LIMIT} free questions
+            </span>
+            <div style={{ flex: 1, height: 3, background: BORDER, borderRadius: 2, overflow: "hidden" }}>
+                <div style={{
+                    height: "100%", borderRadius: 2,
+                    width: `${pct}%`,
+                    background: isLow ? "#c0392b" : GOLD,
+                    transition: "width 0.4s ease",
+                }} />
+            </div>
+            {isLow && (
+                <span style={{ fontSize: 11, color: "#c0392b", whiteSpace: "nowrap" }}>
+                    {remaining} left
+                </span>
+            )}
+        </div>
+    )
+}
+
+// ─── Signup Gate (shown after 10 free questions) ──────────────────────────────
+function SignupGate({ onAuth, isMobile }) {
+    const [tab, setTab]         = useState("signup")
     const [email, setEmail]     = useState("")
     const [password, setPass]   = useState("")
     const [name, setName]       = useState("")
     const [loading, setLoading] = useState(false)
     const [error, setError]     = useState("")
-    const [success, setSuccess] = useState("")
 
     async function submit() {
-        setError(""); setSuccess(""); setLoading(true)
+        setError(""); setLoading(true)
         try {
-            if (tab === "login") {
-                const { data, error: e } = await supabase.auth.signInWithPassword({ email, password })
-                if (e) throw e
-                await ensureProfile(data.user)
-                onAuth(data.user)
-            } else {
+            if (tab === "signup") {
                 const { data, error: e } = await supabase.auth.signUp({
                     email, password,
                     options: { data: { full_name: name } },
                 })
                 if (e) throw e
-                if (data.user && !data.session) {
-                    setSuccess("Check your email to confirm your account, then sign in.")
-                    setTab("login")
-                } else if (data.user) {
-                    await ensureProfile(data.user)
-                    onAuth(data.user)
-                }
+                if (data.user) onAuth(data.user)
+            } else {
+                const { data, error: e } = await supabase.auth.signInWithPassword({ email, password })
+                if (e) throw e
+                onAuth(data.user)
             }
         } catch(e) {
             setError(e.message || "Something went wrong.")
@@ -484,7 +471,7 @@ function AuthScreen({ onAuth }) {
     const onKey = e => { if (e.key === "Enter") submit() }
 
     const inputStyle = {
-        width: "100%", background: "#0f0f0f",
+        width: "100%", background: BG,
         border: `1px solid ${BORDER}`, borderRadius: 8,
         color: TEXT, fontFamily: "'DM Sans', sans-serif",
         fontSize: 14, padding: "11px 14px", outline: "none",
@@ -493,40 +480,48 @@ function AuthScreen({ onAuth }) {
 
     return (
         <div style={{
-            minHeight: "100vh", display: "flex",
-            alignItems: "center", justifyContent: "center",
-            background: BG, fontFamily: "'DM Sans', sans-serif",
+            position: "fixed", inset: 0,
+            background: "rgba(0,0,0,0.85)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 100, padding: "20px",
+            backdropFilter: "blur(4px)",
         }}>
             <div style={{
-                width: "100%", maxWidth: 400,
-                background: PANEL, border: `1px solid ${BORDER}`,
-                borderRadius: 16, padding: "40px 36px",
-                margin: "0 16px",
+                width: "100%", maxWidth: 420,
+                background: PANEL, border: `1px solid ${GOLD}33`,
+                borderRadius: 16, padding: isMobile ? "32px 24px" : "40px 36px",
             }}>
-                <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
-                    <img src={logo} alt="Jabril AI" style={{ width: 100, height: "auto" }} />
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                    <img src={logo} alt="Jabril AI" style={{ width: 80, height: "auto" }} />
                 </div>
-                <p style={{ color: MUTED, fontSize: 14, textAlign: "center", marginBottom: 28 }}>
-                    Black Civilization Research Archive
+                <h2 style={{
+                    fontFamily: "'Cormorant Garamond', serif",
+                    fontStyle: "italic", fontWeight: 300,
+                    fontSize: 26, color: TEXT, textAlign: "center",
+                    marginBottom: 8, lineHeight: 1.3,
+                }}>
+                    Continue your research
+                </h2>
+                <p style={{ color: MUTED, fontSize: 14, textAlign: "center", marginBottom: 24, lineHeight: 1.6 }}>
+                    You've explored {FREE_LIMIT} questions. Create a free account to unlock unlimited access and save your research history.
                 </p>
 
                 {/* Tabs */}
                 <div style={{ display: "flex", gap: 2, background: BG, borderRadius: 8, padding: 3, marginBottom: 24 }}>
-                    {["login", "signup"].map(t => (
-                        <button key={t} onClick={() => { setTab(t); setError(""); setSuccess("") }} style={{
+                    {["signup", "login"].map(t => (
+                        <button key={t} onClick={() => { setTab(t); setError("") }} style={{
                             flex: 1, padding: "9px", border: "none", borderRadius: 6,
                             background: tab === t ? PANEL : "transparent",
                             color: tab === t ? TEXT : MUTED,
                             fontFamily: "inherit", fontSize: 13, fontWeight: 500,
                             cursor: "pointer", transition: "all 0.2s",
                         }}>
-                            {t === "login" ? "Sign In" : "Create Account"}
+                            {t === "signup" ? "Create Account" : "Sign In"}
                         </button>
                     ))}
                 </div>
 
-                {error   && <p style={{ color: "#e74c3c", background: "#e74c3c18", border: "1px solid #e74c3c30", borderRadius: 6, padding: "9px 12px", fontSize: 13, marginBottom: 14 }}>{error}</p>}
-                {success && <p style={{ color: "#27ae60", background: "#27ae6018", border: "1px solid #27ae6030", borderRadius: 6, padding: "9px 12px", fontSize: 13, marginBottom: 14 }}>{success}</p>}
+                {error && <p style={{ color: "#e74c3c", background: "#e74c3c18", border: "1px solid #e74c3c30", borderRadius: 6, padding: "9px 12px", fontSize: 13, marginBottom: 14 }}>{error}</p>}
 
                 {tab === "signup" && (
                     <div style={{ marginBottom: 14 }}>
@@ -554,6 +549,103 @@ function AuthScreen({ onAuth }) {
                         transition: "opacity 0.2s",
                     }}
                 >
+                    {loading ? "Please wait…" : tab === "signup" ? "Create Free Account" : "Sign In"}
+                </button>
+            </div>
+        </div>
+    )
+}
+
+// ─── Auth Screen (for returning users clicking Sign In) ───────────────────────
+function AuthScreen({ onAuth }) {
+    const [tab, setTab]         = useState("login")
+    const [email, setEmail]     = useState("")
+    const [password, setPass]   = useState("")
+    const [name, setName]       = useState("")
+    const [loading, setLoading] = useState(false)
+    const [error, setError]     = useState("")
+    const [success, setSuccess] = useState("")
+
+    async function submit() {
+        setError(""); setSuccess(""); setLoading(true)
+        try {
+            if (tab === "login") {
+                const { data, error: e } = await supabase.auth.signInWithPassword({ email, password })
+                if (e) throw e
+                onAuth(data.user)
+            } else {
+                const { data, error: e } = await supabase.auth.signUp({
+                    email, password,
+                    options: { data: { full_name: name } },
+                })
+                if (e) throw e
+                if (data.user && !data.session) {
+                    setSuccess("Check your email to confirm your account, then sign in.")
+                    setTab("login")
+                } else if (data.user) {
+                    onAuth(data.user)
+                }
+            }
+        } catch(e) {
+            setError(e.message || "Something went wrong.")
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const onKey = e => { if (e.key === "Enter") submit() }
+
+    const inputStyle = {
+        width: "100%", background: "#0f0f0f",
+        border: `1px solid ${BORDER}`, borderRadius: 8,
+        color: TEXT, fontFamily: "'DM Sans', sans-serif",
+        fontSize: 14, padding: "11px 14px", outline: "none",
+        boxSizing: "border-box",
+    }
+
+    return (
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: BG, fontFamily: "'DM Sans', sans-serif" }}>
+            <div style={{ width: "100%", maxWidth: 400, background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 16, padding: "40px 36px", margin: "0 16px" }}>
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+                    <img src={logo} alt="Jabril AI" style={{ width: 100, height: "auto" }} />
+                </div>
+                <p style={{ color: MUTED, fontSize: 14, textAlign: "center", marginBottom: 28 }}>Black Civilization Research Archive</p>
+                <div style={{ display: "flex", gap: 2, background: BG, borderRadius: 8, padding: 3, marginBottom: 24 }}>
+                    {["login", "signup"].map(t => (
+                        <button key={t} onClick={() => { setTab(t); setError(""); setSuccess("") }} style={{
+                            flex: 1, padding: "9px", border: "none", borderRadius: 6,
+                            background: tab === t ? PANEL : "transparent",
+                            color: tab === t ? TEXT : MUTED,
+                            fontFamily: "inherit", fontSize: 13, fontWeight: 500,
+                            cursor: "pointer", transition: "all 0.2s",
+                        }}>
+                            {t === "login" ? "Sign In" : "Create Account"}
+                        </button>
+                    ))}
+                </div>
+                {error   && <p style={{ color: "#e74c3c", background: "#e74c3c18", border: "1px solid #e74c3c30", borderRadius: 6, padding: "9px 12px", fontSize: 13, marginBottom: 14 }}>{error}</p>}
+                {success && <p style={{ color: "#27ae60", background: "#27ae6018", border: "1px solid #27ae6030", borderRadius: 6, padding: "9px 12px", fontSize: 13, marginBottom: 14 }}>{success}</p>}
+                {tab === "signup" && (
+                    <div style={{ marginBottom: 14 }}>
+                        <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6 }}>Full Name</label>
+                        <input type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} onKeyDown={onKey} style={inputStyle} />
+                    </div>
+                )}
+                <div style={{ marginBottom: 14 }}>
+                    <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6 }}>Email</label>
+                    <input type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={onKey} style={inputStyle} />
+                </div>
+                <div style={{ marginBottom: 20 }}>
+                    <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6 }}>Password</label>
+                    <input type="password" placeholder={tab === "signup" ? "Min. 6 characters" : "Your password"} value={password} onChange={e => setPass(e.target.value)} onKeyDown={onKey} style={inputStyle} />
+                </div>
+                <button onClick={submit} disabled={loading || !email || !password} style={{
+                    width: "100%", padding: "13px", border: "none", borderRadius: 8,
+                    background: GOLD, color: "#0f0f0f", fontFamily: "inherit",
+                    fontSize: 14, fontWeight: 600,
+                    cursor: loading || !email || !password ? "not-allowed" : "pointer",
+                    opacity: loading || !email || !password ? 0.6 : 1, transition: "opacity 0.2s",
+                }}>
                     {loading ? "Please wait…" : tab === "login" ? "Sign In" : "Create Account"}
                 </button>
             </div>
@@ -561,55 +653,23 @@ function AuthScreen({ onAuth }) {
     )
 }
 
-// ─── Quota Bar ────────────────────────────────────────────────────────────────
-function QuotaBar({ used, isMobile }) {
-    const remaining = FREE_LIMIT - used
-    const pct = Math.min((used / FREE_LIMIT) * 100, 100)
-    const isLow = remaining <= 3
-
-    return (
-        <div style={{
-            padding: "8px 20px",
-            borderBottom: `1px solid ${BORDER}`,
-            background: PANEL,
-            display: "flex", alignItems: "center", gap: 12,
-            flexShrink: 0,
-        }}>
-            <span style={{ fontSize: 12, color: MUTED, whiteSpace: "nowrap" }}>
-                {used}/{FREE_LIMIT} free questions
-            </span>
-            <div style={{ flex: 1, height: 3, background: BORDER, borderRadius: 2, overflow: "hidden" }}>
-                <div style={{
-                    height: "100%", borderRadius: 2,
-                    width: `${pct}%`,
-                    background: isLow ? "#c0392b" : GOLD,
-                    transition: "width 0.4s ease",
-                }} />
-            </div>
-            {isLow && remaining > 0 && (
-                <span style={{ fontSize: 11, color: "#c0392b", whiteSpace: "nowrap" }}>
-                    {remaining} left
-                </span>
-            )}
-        </div>
-    )
-}
-
-// ─── Main App (authenticated) ─────────────────────────────────────────────────
-function MainApp({ user, onSignOut }) {
+// ─── Main App ─────────────────────────────────────────────────────────────────
+function MainApp({ user, onSignOut, onAuthNeeded }) {
     const [view, setView]                   = useState("welcome")
     const [messages, setMessages]           = useState([])
     const [history, setHistory]             = useState([])
     const [activeId, setActiveId]           = useState(null)
     const [prompt, setPrompt]               = useState("")
     const [loading, setLoading]             = useState(false)
-    const [questionsUsed, setQuestionsUsed] = useState(0)
-    const [booting, setBooting]             = useState(true)
+    const [questionsUsed, setQuestionsUsed] = useState(() => user ? 0 : getAnonCount())
+    const [booting, setBooting]             = useState(!!user)
+    const [showGate, setShowGate]           = useState(false)
     const messagesEndRef                    = useRef(null)
     const latestMsgRef                      = useRef(null)
 
-    // Load sessions + quota on mount
+    // If logged in, load sessions + quota from Supabase
     useEffect(() => {
+        if (!user) return
         async function boot() {
             const [sessions, used] = await Promise.all([
                 dbGetSessions(user.id),
@@ -620,9 +680,8 @@ function MainApp({ user, onSignOut }) {
             setBooting(false)
         }
         boot()
-    }, [user.id])
+    }, [user])
 
-    // Scroll on new messages
     useEffect(() => {
         if (view === "chat") {
             setTimeout(() => {
@@ -638,26 +697,31 @@ function MainApp({ user, onSignOut }) {
     async function loadSession(id) {
         const session = history.find(h => h.id === id)
         if (!session) return
-        setActiveId(id)
-        setView("chat")
+        setActiveId(id); setView("chat")
         const dbMsgs = await dbGetMessages(id)
-        const converted = dbMsgs.map(m => ({
+        setMessages(dbMsgs.map(m => ({
             id: m.id,
             role: m.role === "assistant" ? "ai" : m.role,
             text: m.content,
-        }))
-        setMessages(converted)
+        })))
     }
 
     async function send(queryOverride) {
         const query = (queryOverride || prompt).trim()
         if (!query || query.length < 2 || loading) return
-        if (questionsUsed >= FREE_LIMIT) return
+
+        // Anonymous user hit the limit — show signup gate
+        if (!user && questionsUsed >= FREE_LIMIT) {
+            setShowGate(true)
+            return
+        }
 
         setPrompt(""); setLoading(true); setView("chat")
 
         let sessionId = activeId
-        if (!sessionId) {
+
+        // Logged-in: persist session to Supabase
+        if (user && !sessionId) {
             const title = query.slice(0, 60) + (query.length > 60 ? "…" : "")
             const newSession = await dbCreateSession(user.id, title)
             sessionId = newSession.id
@@ -665,11 +729,17 @@ function MainApp({ user, onSignOut }) {
             setHistory(prev => [newSession, ...prev])
         }
 
+        // Anonymous: use local session id
+        if (!user && !sessionId) {
+            sessionId = `anon-${Date.now()}`
+            setActiveId(sessionId)
+        }
+
         const userMsg    = { id: `u-${Date.now()}`, role: "user",    text: query }
         const loadingMsg = { id: `l-${Date.now()}`, role: "loading", text: "Consulting the Archive..." }
         setMessages(prev => [...prev, userMsg, loadingMsg])
 
-        await dbSaveMessage(sessionId, "user", query)
+        if (user) await dbSaveMessage(sessionId, "user", query)
 
         try {
             const res = await fetch(WEBHOOK_URL, {
@@ -688,9 +758,18 @@ function MainApp({ user, onSignOut }) {
             const aiMsg = { id: `a-${Date.now()}`, role: "ai", text: clean }
             setMessages(prev => [...prev.filter(m => m.role !== "loading"), aiMsg])
 
-            await dbSaveMessage(sessionId, "assistant", clean)
-            const newCount = await incrementQuestions(user.id)
-            setQuestionsUsed(newCount)
+            if (user) {
+                await dbSaveMessage(sessionId, "assistant", clean)
+                const newCount = await incrementQuestions(user.id)
+                setQuestionsUsed(newCount)
+            } else {
+                const newCount = incrementAnonCount()
+                setQuestionsUsed(newCount)
+                // Show gate immediately after the 10th answer
+                if (newCount >= FREE_LIMIT) {
+                    setTimeout(() => setShowGate(true), 1200)
+                }
+            }
 
         } catch(e) {
             const errMsg = { id: `e-${Date.now()}`, role: "ai", text: "Connection to the Archive interrupted. Please try again." }
@@ -700,8 +779,12 @@ function MainApp({ user, onSignOut }) {
         setLoading(false)
     }
 
-    const isMobile    = window.innerWidth < 768
-    const isExhausted = questionsUsed >= FREE_LIMIT
+    function handleAuth(newUser) {
+        setShowGate(false)
+        onAuthNeeded(newUser)
+    }
+
+    const isMobile = window.innerWidth < 768
 
     if (booting) {
         return (
@@ -713,7 +796,11 @@ function MainApp({ user, onSignOut }) {
 
     return (
         <div style={{ display: "flex", width: "100vw", height: "100vh", background: BG, color: TEXT, fontFamily: "'DM Sans', sans-serif", overflow: "hidden" }}>
-            {!isMobile && (
+            {/* Signup gate overlay */}
+            {showGate && <SignupGate onAuth={handleAuth} isMobile={isMobile} />}
+
+            {/* Sidebar only for logged-in users */}
+            {!isMobile && user && (
                 <Sidebar
                     history={history}
                     activeId={activeId}
@@ -723,21 +810,22 @@ function MainApp({ user, onSignOut }) {
                     onSignOut={onSignOut}
                 />
             )}
+
             <main style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
-                <QuotaBar used={questionsUsed} isMobile={isMobile} />
+                <QuotaBar used={questionsUsed} isLoggedIn={!!user} isMobile={isMobile} />
                 {view === "welcome"
                     ? <WelcomeScreen onChipClick={send} isMobile={isMobile} />
                     : <ChatArea messages={messages} messagesEndRef={messagesEndRef} latestMsgRef={latestMsgRef} isMobile={isMobile} />
                 }
             </main>
+
             <InputBar
                 value={prompt}
                 onChange={e => setPrompt(e.target.value)}
                 onSend={() => send()}
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() } }}
-                disabled={loading || isExhausted}
+                disabled={loading}
                 isMobile={isMobile}
-                exhausted={isExhausted}
             />
         </div>
     )
@@ -745,7 +833,8 @@ function MainApp({ user, onSignOut }) {
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 export default function App() {
-    const [user, setUser] = useState(undefined)
+    const [user, setUser]         = useState(undefined)
+    const [showLogin, setShowLogin] = useState(false)
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data }) => {
@@ -762,6 +851,7 @@ export default function App() {
         setUser(null)
     }
 
+    // Still checking session
     if (user === undefined) {
         return (
             <div style={{ display: "flex", width: "100vw", height: "100vh", background: BG, alignItems: "center", justifyContent: "center" }}>
@@ -770,8 +860,17 @@ export default function App() {
         )
     }
 
-    if (!user) return <AuthScreen onAuth={setUser} />
+    // Returning user explicitly clicked Sign In
+    if (showLogin && !user) {
+        return <AuthScreen onAuth={u => { setUser(u); setShowLogin(false) }} />
+    }
 
-    return <MainApp user={user} onSignOut={handleSignOut} />
+    // All users (anonymous or logged in) go straight to the app
+    return (
+        <MainApp
+            user={user}
+            onSignOut={handleSignOut}
+            onAuthNeeded={setUser}
+        />
+    )
 }
-
