@@ -208,21 +208,9 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
             <div style={{ padding: "24px 20px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "center" }}>
                 <img src={logo} alt="Jabril AI" style={{ width: 80, height: "auto" }} />
             </div>
-            <div style={{ padding: "14px 12px 8px", display: "flex", flexDirection: "column", gap: 6 }}>
-                <button onClick={onNewChat} style={{
-                    width: "100%", background: "transparent",
-                    border: `1px solid ${BORDER}`, borderRadius: 8,
-                    color: TEXT, fontFamily: "inherit", fontSize: 13,
-                    padding: "10px 12px", cursor: "pointer", textAlign: "center",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                    transition: "border-color 0.2s, color 0.2s",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXT }}
-                >
-                    <span style={{ fontSize: 16 }}>+</span> New Research
-                </button>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 2px" }}>
+            <div style={{ padding: "14px 12px 8px", display: "flex", flexDirection: "column", gap: 8 }}>
+                {/* User info + Sign Out */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ fontSize: 11, color: MUTED, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                         {user?.email}
                     </span>
@@ -240,6 +228,22 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
                         Sign Out
                     </button>
                 </div>
+                {/* Divider */}
+                <div style={{ borderTop: `1px solid ${BORDER}` }} />
+                {/* New Research button */}
+                <button onClick={onNewChat} style={{
+                    width: "100%", background: "transparent",
+                    border: `1px solid ${BORDER}`, borderRadius: 8,
+                    color: TEXT, fontFamily: "inherit", fontSize: 13,
+                    padding: "10px 12px", cursor: "pointer", textAlign: "center",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    transition: "border-color 0.2s, color 0.2s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXT }}
+                >
+                    <span style={{ fontSize: 16 }}>+</span> New Research
+                </button>
             </div>
             <div style={{ padding: "6px 12px 4px" }}>
                 <span style={{ fontSize: 13, color: MUTED, letterSpacing: "0.12em", textTransform: "uppercase" }}>Recent</span>
