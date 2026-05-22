@@ -63,8 +63,8 @@ async function dbGetMessages(sessionId) {
     return data ?? []
 }
 
-async function dbSaveMessage(sessionId, role, content) {
-    await supabase.from("chat_messages").insert({ session_id: sessionId, role, content })
+async function dbSaveMessage(sessionId, userId, role, content) {
+    await supabase.from("chat_messages").insert({ session_id: sessionId, user_id: userId, role, content })
 }
 
 // ─── Constants & utilities (unchanged) ───────────────────────────────────────
@@ -867,7 +867,7 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
         const loadingMsg = { id: `l-${Date.now()}`, role: "loading", text: "Consulting the Archive..." }
         setMessages(prev => [...prev, userMsg, loadingMsg])
 
-        if (user) await dbSaveMessage(sessionId, "user", query)
+        if (user) await dbSaveMessage(sessionId, user.id, "user", query)
 
         try {
             const res = await fetch(WEBHOOK_URL, {
@@ -887,7 +887,7 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
             setMessages(prev => [...prev.filter(m => m.role !== "loading"), aiMsg])
 
             if (user) {
-                await dbSaveMessage(sessionId, "assistant", clean)
+                await dbSaveMessage(sessionId, user.id, "assistant", clean)
                 const newCount = await incrementQuestions(user.id)
                 setQuestionsUsed(newCount)
             } else {
