@@ -63,8 +63,14 @@ async function dbGetMessages(sessionId) {
     return data ?? []
 }
 
-async function dbSaveMessage(sessionId, userId, role, content) {
-    await supabase.from("chat_messages").insert({ session_id: sessionId, user_id: userId, role, content })
+async function dbSaveMessage(sessionId, userId, role, msgContent) {
+    const { error } = await supabase.from("chat_messages").insert({
+        session_id: sessionId,
+        user_id: userId,
+        role: role,
+        content: msgContent,
+    })
+    if (error) console.error("dbSaveMessage error:", error)
 }
 
 // ─── Constants & utilities (unchanged) ───────────────────────────────────────
