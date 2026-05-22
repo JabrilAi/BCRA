@@ -357,14 +357,16 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
     )
 }
 
-function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile }) {
+function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasSidebar }) {
+    const leftOffset = hasSidebar ? 220 : 0
     return (
         <div style={{
             position: "fixed", bottom: 0,
-            left: isMobile ? 0 : 220, right: 0,
+            left: 0, right: 0,
             background: `linear-gradient(to top, ${BG} 65%, transparent)`,
             padding: isMobile ? "12px 16px 24px" : "16px 40px 32px",
             display: "flex", justifyContent: "center",
+            paddingLeft: hasSidebar ? 220 : 0,
             zIndex: 50,
         }}>
             <div style={{ width: "100%", maxWidth: 700, display: "flex", gap: 10, alignItems: "center" }}>
@@ -698,7 +700,7 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
     const [prompt, setPrompt]               = useState("")
     const [loading, setLoading]             = useState(false)
     const [questionsUsed, setQuestionsUsed] = useState(() => user ? 0 : getAnonCount())
-    const [booting, setBooting]             = useState(!!user)
+    const [booting, setBooting]             = useState(!!user)  // only true for logged-in users waiting on DB
     const [showGate, setShowGate]           = useState(false)
     const messagesEndRef                    = useRef(null)
     const latestMsgRef                      = useRef(null)
@@ -862,6 +864,7 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() } }}
                 disabled={loading}
                 isMobile={isMobile}
+                hasSidebar={!isMobile && !!user}
             />
         </div>
     )
