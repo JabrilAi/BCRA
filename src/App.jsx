@@ -358,7 +358,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
 }
 
 function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasSidebar }) {
-    const leftOffset = hasSidebar ? 220 : 0
+    const sidebarW = hasSidebar ? 220 : 0
     return (
         <div style={{
             position: "fixed", bottom: 0,
@@ -366,9 +366,10 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
             background: `linear-gradient(to top, ${BG} 65%, transparent)`,
             padding: isMobile ? "12px 16px 24px" : "16px 40px 32px",
             display: "flex", justifyContent: "center",
-            paddingLeft: hasSidebar ? 220 : 0,
             zIndex: 50,
         }}>
+            {/* Invisible spacer on left to balance the sidebar */}
+            {hasSidebar && <div style={{ width: sidebarW, flexShrink: 0 }} />}
             <div style={{ width: "100%", maxWidth: 700, display: "flex", gap: 10, alignItems: "center" }}>
                 <input
                     value={value}
@@ -401,6 +402,8 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
                     Ask
                 </button>
             </div>
+            {/* Mirror spacer on right to keep input truly centered */}
+            {hasSidebar && <div style={{ width: sidebarW, flexShrink: 0 }} />}
         </div>
     )
 }
