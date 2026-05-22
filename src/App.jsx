@@ -270,7 +270,7 @@ function WelcomeScreen({ onChipClick, isMobile }) {
                     <img src={logo} alt="Jabril AI" style={{ width: 144, height: "auto" }} />
                 </div>
             )}
-            <p style={{ color: GOLD, fontSize: 19, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>
+            <p style={{ color: GOLD, fontSize: 26, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 12, fontFamily: "'Cinzel', serif" }}>
                 Jabril AI
             </p>
             <p style={{ color: TEXT, fontSize: 16, maxWidth: 380, lineHeight: 1.75, marginBottom: isMobile ? 32 : 52 }}>
@@ -308,7 +308,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
                         ref={index === messages.length - 1 ? latestMsgRef : null}
                         style={{ padding: "20px 0", borderBottom: `1px solid ${BORDER}` }}>
                         <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", marginBottom: 10, gap: isMobile ? 8 : 0 }}>
-                            <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: msg.role === "user" ? GOLD : MUTED }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: msg.role === "user" ? GOLD : MUTED, fontFamily: msg.role !== "user" ? "'Cinzel', serif" : "inherit" }}>
                                 {msg.role === "user" ? "You" : msg.role === "loading" ? "Archive" : "Jabril AI"}
                             </div>
                             {msg.role === "ai" && !isMobile && (
@@ -969,6 +969,14 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
 export default function App() {
     const [user, setUser]         = useState(undefined)
     const [showLogin, setShowLogin] = useState(false)
+
+    useEffect(() => {
+        // Inject Cinzel font
+        const link = document.createElement("link")
+        link.href = "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&display=swap"
+        link.rel = "stylesheet"
+        document.head.appendChild(link)
+    }, [])
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data }) => {
