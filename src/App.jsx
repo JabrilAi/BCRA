@@ -492,6 +492,7 @@ function SignupGate({ onAuth, isMobile }) {
     const [name, setName]       = useState("")
     const [loading, setLoading] = useState(false)
     const [error, setError]     = useState("")
+    const [showPass, setShowPass] = useState(false)
 
     async function submit() {
         setError(""); setLoading(true)
@@ -582,7 +583,12 @@ function SignupGate({ onAuth, isMobile }) {
                 </div>
                 <div style={{ marginBottom: 20 }}>
                     <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6 }}>Password</label>
-                    <input type="password" placeholder={tab === "signup" ? "Min. 6 characters" : "Your password"} value={password} onChange={e => setPass(e.target.value)} onKeyDown={onKey} style={inputStyle} />
+                    <div style={{ position: "relative" }}>
+                        <input type={showPass ? "text" : "password"} placeholder={tab === "signup" ? "Min. 6 characters" : "Your password"} value={password} onChange={e => setPass(e.target.value)} onKeyDown={onKey} style={{ ...inputStyle, paddingRight: 44 }} />
+                        <button onClick={() => setShowPass(p => !p)} type="button" style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: MUTED, display: "flex", alignItems: "center", padding: 0 }}>
+                            {showPass ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
+                        </button>
+                    </div>
                 </div>
                 <button
                     onClick={submit}
@@ -610,8 +616,23 @@ function AuthScreen({ onAuth }) {
     const [password, setPass]   = useState("")
     const [name, setName]       = useState("")
     const [loading, setLoading] = useState(false)
-    const [error, setError]     = useState("")
-    const [success, setSuccess] = useState("")
+    const [error, setError]       = useState("")
+    const [success, setSuccess]   = useState("")
+    const [showPass, setShowPass] = useState(false)
+    const [showForgot, setShowForgot] = useState(false)
+    const [resetEmail, setResetEmail] = useState("")
+    const [resetSent, setResetSent]   = useState(false)
+
+    async function sendReset() {
+        if (!resetEmail) return
+        setLoading(true); setError("")
+        const { error: e } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+            redirectTo: "https://jabrilai.net",
+        })
+        setLoading(false)
+        if (e) setError(e.message)
+        else setResetSent(true)
+    }
 
     async function submit() {
         setError(""); setSuccess(""); setLoading(true)
@@ -682,10 +703,58 @@ function AuthScreen({ onAuth }) {
                     <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6 }}>Email</label>
                     <input type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={onKey} style={inputStyle} />
                 </div>
-                <div style={{ marginBottom: 20 }}>
+                <div style={{ marginBottom: 8 }}>
                     <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6 }}>Password</label>
-                    <input type="password" placeholder={tab === "signup" ? "Min. 6 characters" : "Your password"} value={password} onChange={e => setPass(e.target.value)} onKeyDown={onKey} style={inputStyle} />
+                    <div style={{ position: "relative" }}>
+                        <input type={showPass ? "text" : "password"} placeholder={tab === "signup" ? "Min. 6 characters" : "Your password"} value={password} onChange={e => setPass(e.target.value)} onKeyDown={onKey} style={{ ...inputStyle, paddingRight: 44 }} />
+                        <button onClick={() => setShowPass(p => !p)} type="button" style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: MUTED, display: "flex", alignItems: "center", padding: 0 }}>
+                            {showPass ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
+                        </button>
+                    </div>
                 </div>
+                {tab === "login" && (
+                    <div style={{ marginBottom: 20, textAlign: "right" }}>
+                        <button onClick={() => { setShowForgot(true); setResetEmail(email); setError(""); setResetSent(false) }} type="button" style={{ background: "none", border: "none", color: MUTED, fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+                            onMouseEnter={e => e.currentTarget.style.color = GOLD}
+                            onMouseLeave={e => e.currentTarget.style.color = MUTED}
+                        >
+                            Forgot password?
+                        </button>
+                    </div>
+                )}
+                {tab === "signup" && <div style={{ marginBottom: 20 }} />}
+
+                {/* Forgot password modal */}
+                {showForgot && (
+                    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 20 }}>
+                        <div style={{ width: "100%", maxWidth: 380, background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "32px 28px" }}>
+                            <h3 style={{ color: TEXT, fontSize: 18, fontWeight: 600, marginBottom: 8, fontFamily: "inherit" }}>Reset your password</h3>
+                            <p style={{ color: MUTED, fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>Enter your email and we'll send you a link to reset your password.</p>
+                            {resetSent ? (
+                                <p style={{ color: "#27ae60", background: "#27ae6018", border: "1px solid #27ae6030", borderRadius: 6, padding: "12px", fontSize: 13, textAlign: "center" }}>
+                                    ✓ Check your email for the reset link
+                                </p>
+                            ) : (
+                                <>
+                                    {error && <p style={{ color: "#e74c3c", fontSize: 13, marginBottom: 12 }}>{error}</p>}
+                                    <input
+                                        type="email"
+                                        placeholder="your@email.com"
+                                        value={resetEmail}
+                                        onChange={e => setResetEmail(e.target.value)}
+                                        style={{ width: "100%", background: BG, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, fontFamily: "inherit", fontSize: 14, padding: "11px 14px", outline: "none", boxSizing: "border-box", marginBottom: 12 }}
+                                    />
+                                    <button onClick={sendReset} disabled={loading || !resetEmail} style={{ width: "100%", padding: "12px", border: "none", borderRadius: 8, background: GOLD, color: "#0f0f0f", fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: !resetEmail ? "not-allowed" : "pointer", opacity: !resetEmail ? 0.6 : 1 }}>
+                                        {loading ? "Sending…" : "Send Reset Link"}
+                                    </button>
+                                </>
+                            )}
+                            <button onClick={() => { setShowForgot(false); setError("") }} style={{ width: "100%", marginTop: 10, padding: "10px", border: `1px solid ${BORDER}`, borderRadius: 8, background: "transparent", color: MUTED, fontFamily: "inherit", fontSize: 13, cursor: "pointer" }}>
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                )}
                 <button onClick={submit} disabled={loading || !email || !password} style={{
                     width: "100%", padding: "13px", border: "none", borderRadius: 8,
                     background: GOLD, color: "#0f0f0f", fontFamily: "inherit",
