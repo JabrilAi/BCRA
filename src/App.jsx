@@ -813,13 +813,25 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
     async function loadSession(id) {
         const session = history.find(h => h.id === id)
         if (!session) return
-        setActiveId(id); setView("chat")
-        const dbMsgs = await dbGetMessages(id)
-        setMessages(dbMsgs.map(m => ({
-            id: m.id,
-            role: m.role === "assistant" ? "ai" : m.role,
-            text: m.content,
-        })))
+        // Clear first so stale messages don't flash
+        setMessages([])
+        setActiveId(id)
+        setView("chat")
+        try {
+            const dbMsgs = await dbGetMessages(id)
+            if (dbMsgs.length === 0) {
+                setMessages([{ id: "empty", role: "ai", text: "No messages found in this session." }])
+                return
+            }
+            setMessages(dbMsgs.map(m => ({
+                id: m.id,
+                // Handle both "assistant" and "ai" stored in DB
+                role: (m.role === "assistant" || m.role === "ai") ? "ai" : "user",
+                text: m.content,
+            })))
+        } catch(e) {
+            setMessages([{ id: "err", role: "ai", text: "Could not load this session. Please try again." }])
+        }
     }
 
     async function send(queryOverride) {
