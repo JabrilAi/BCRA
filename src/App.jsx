@@ -66,11 +66,10 @@ async function dbGetMessages(sessionId) {
 async function dbSaveMessage(sessionId, userId, role, msgContent) {
     const { error } = await supabase.from("chat_messages").insert({
         session_id: sessionId,
-        user_id: userId,
         role: role,
         content: msgContent,
     })
-    if (error) console.error("dbSaveMessage error:", error)
+    if (error) console.error("dbSaveMessage error:", error.message, error.details, error.hint)
 }
 
 // ─── Constants & utilities (unchanged) ───────────────────────────────────────
