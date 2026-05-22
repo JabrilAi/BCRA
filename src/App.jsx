@@ -203,7 +203,7 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
         <aside style={{
             width: 220, minWidth: 220, background: PANEL,
             borderRight: `1px solid ${BORDER}`, display: "flex",
-            flexDirection: "column", height: "100vh", overflowY: "auto", flexShrink: 0,
+            flexDirection: "column", height: "100vh", overflowY: "hidden", flexShrink: 0,
         }}>
             <div style={{ padding: "24px 20px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "center" }}>
                 <img src={logo} alt="Jabril AI" style={{ width: 80, height: "auto" }} />
@@ -226,7 +226,7 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
             <div style={{ padding: "6px 12px 4px" }}>
                 <span style={{ fontSize: 13, color: MUTED, letterSpacing: "0.12em", textTransform: "uppercase" }}>Recent</span>
             </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "4px 8px" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "4px 8px", minHeight: 0 }}>
                 {history.length === 0 && (
                     <p style={{ fontSize: 14, color: MUTED, padding: "8px 8px", lineHeight: 1.5 }}>
                         Your research sessions will appear here.
