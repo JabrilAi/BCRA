@@ -83,25 +83,37 @@ const MUTED  = "#5a5650"
 
 const EXAMPLE_QUESTIONS = [
     "Who were the Moors and how did they shape Europe?",
-    "What is Kemetic spirituality?",
-    "How did the Transatlantic slave trade affect Black mental health today?",
-    "What did Marcus Garvey believe?",
-    "What healing foods come from African traditions?",
-    "Who was Cheikh Anta Diop and why does he matter?",
-    "What is the connection between melanin and consciousness?",
-    "How did enslaved Africans preserve their culture?",
-    "What Black philosophers should everyone know?",
-    "How does systemic racism affect Black health outcomes?",
-    "What are traditional African relationship values?",
-    "What did soul food mean to enslaved Black Americans?",
     "How do Black women navigate love and partnership?",
-    "What African herbs and plants have healing properties?",
-    "What is the history of Juneteenth?",
-    "How did the Black Panthers address community health?",
-    "What is Ubuntu philosophy and how does it apply today?",
+    "How do I make a traditional West African peanut stew?",
+    "What is Kemetic spirituality?",
+    "What are the best anti-inflammatory foods for Black bodies?",
+    "How can Black couples keep their relationships strong?",
+    "What did Marcus Garvey believe?",
+    "Can you share a recipe for Jollof rice?",
+    "How do you rebuild trust after betrayal in a relationship?",
     "What foods did West Africans eat before colonization?",
+    "What is Ubuntu philosophy and how does it apply today?",
+    "How do I deal with stress and anxiety as a Black person?",
+    "What are traditional African relationship values?",
+    "How do I make an authentic Egusi soup?",
+    "Who was Cheikh Anta Diop and why does he matter?",
+    "What does it mean to truly love yourself first?",
+    "What African herbs and plants have healing properties?",
+    "What are practical ways to build generational wealth?",
     "How does the Black church influence relationships?",
+    "What is a good recipe for black-eyed peas and rice?",
+    "What is the history of Juneteenth?",
+    "What foods support melanin and skin health?",
+    "What are healthy boundaries in a relationship?",
+    "How did the Black Panthers address community health?",
+    "Can you share a recipe for Nigerian pepper soup?",
+    "How can I raise confident Black children?",
+    "What did soul food mean to enslaved Black Americans?",
     "What can Black men learn from African rites of passage?",
+    "How do I make a healing turmeric and ginger drink?",
+    "How does systemic racism affect Black health outcomes?",
+    "What healing foods come from African traditions?",
+    "What does financial freedom look like for Black families?",
 ]
 
 function cleanMarkdown(text) {
@@ -147,7 +159,7 @@ function printConversation(messages) {
 // ─── UI Components (unchanged) ───────────────────────────────────────────────
 
 function RotatingQuestion({ onAsk }) {
-    const [index, setIndex] = useState(0)
+    const [index, setIndex] = useState(() => Math.floor(Math.random() * EXAMPLE_QUESTIONS.length))
     const [visible, setVisible] = useState(true)
 
     useEffect(() => {
@@ -1008,4 +1020,3 @@ export default function App() {
         />
     )
 }
-
