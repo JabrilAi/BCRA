@@ -226,7 +226,7 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
             <div style={{ padding: "6px 12px 4px" }}>
                 <span style={{ fontSize: 13, color: MUTED, letterSpacing: "0.12em", textTransform: "uppercase" }}>Recent</span>
             </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "4px 8px", minHeight: 0 }}>
+            <div style={{ overflowY: "auto", padding: "4px 8px", flex: "1 1 0", minHeight: 0, maxHeight: "calc(100vh - 220px)" }}>
                 {history.length === 0 && (
                     <p style={{ fontSize: 14, color: MUTED, padding: "8px 8px", lineHeight: 1.5 }}>
                         Your research sessions will appear here.
