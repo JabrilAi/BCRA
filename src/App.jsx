@@ -869,13 +869,17 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
 
         let sessionId = activeId
 
-        // Logged-in: persist session to Supabase
+        // Logged-in: always create a new session for each new question
         if (user && !sessionId) {
             const title = query.slice(0, 60) + (query.length > 60 ? "…" : "")
-            const newSession = await dbCreateSession(user.id, title)
-            sessionId = newSession.id
-            setActiveId(sessionId)
-            setHistory(prev => [newSession, ...prev])
+            try {
+                const newSession = await dbCreateSession(user.id, title)
+                sessionId = newSession.id
+                setActiveId(sessionId)
+                setHistory(prev => [newSession, ...prev.filter(h => h.id !== newSession.id)])
+            } catch(e) {
+                console.error("Session create error:", e)
+            }
         }
 
         // Anonymous: use local session id
