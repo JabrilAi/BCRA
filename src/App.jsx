@@ -358,52 +358,58 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
 }
 
 function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasSidebar }) {
-    const sidebarW = hasSidebar ? 220 : 0
+    // The outer div spans the full viewport width.
+    // marginLeft shifts the center point when sidebar is present.
+    const ml = hasSidebar ? 220 : 0
     return (
         <div style={{
             position: "fixed", bottom: 0,
             left: 0, right: 0,
             background: `linear-gradient(to top, ${BG} 65%, transparent)`,
-            padding: isMobile ? "12px 16px 24px" : "16px 40px 32px",
-            display: "flex", justifyContent: "center",
+            paddingBottom: isMobile ? 24 : 32,
+            paddingTop: isMobile ? 12 : 16,
             zIndex: 50,
         }}>
-            {/* Invisible spacer on left to balance the sidebar */}
-            {hasSidebar && <div style={{ width: sidebarW, flexShrink: 0 }} />}
-            <div style={{ width: "100%", maxWidth: 700, display: "flex", gap: 10, alignItems: "center" }}>
-                <input
-                    value={value}
-                    onChange={onChange}
-                    onKeyDown={onKeyDown}
-                    placeholder="Ask Jabril..."
-                    disabled={disabled}
-                    style={{
-                        flex: 1, background: PANEL,
-                        border: `1px solid ${GOLD}`, borderRadius: 12,
-                        color: TEXT, fontFamily: "inherit",
-                        fontSize: 15, padding: "14px 18px", outline: "none",
-                    }}
-                    onFocus={e => e.target.style.borderColor = GOLD}
-                    onBlur={e => e.target.style.borderColor = GOLD}
-                />
-                <button
-                    onClick={onSend}
-                    disabled={disabled}
-                    style={{
-                        background: GOLD, border: "none", borderRadius: 12,
-                        color: "#0f0f0f", fontFamily: "inherit",
-                        fontSize: 13, fontWeight: 500,
-                        padding: "14px 28px", cursor: disabled ? "not-allowed" : "pointer",
-                        opacity: disabled ? 0.5 : 1, whiteSpace: "nowrap",
-                    }}
-                    onMouseEnter={e => { if (!disabled) e.currentTarget.style.transform = "scale(1.02)" }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)" }}
-                >
-                    Ask
-                </button>
+            <div style={{
+                marginLeft: ml,
+                display: "flex",
+                justifyContent: "center",
+                paddingLeft: isMobile ? 16 : 40,
+                paddingRight: isMobile ? 16 : 40,
+            }}>
+                <div style={{ width: "100%", maxWidth: 700, display: "flex", gap: 10, alignItems: "center" }}>
+                    <input
+                        value={value}
+                        onChange={onChange}
+                        onKeyDown={onKeyDown}
+                        placeholder="Ask Jabril..."
+                        disabled={disabled}
+                        style={{
+                            flex: 1, background: PANEL,
+                            border: `1px solid ${GOLD}`, borderRadius: 12,
+                            color: TEXT, fontFamily: "inherit",
+                            fontSize: 15, padding: "14px 18px", outline: "none",
+                        }}
+                        onFocus={e => e.target.style.borderColor = GOLD}
+                        onBlur={e => e.target.style.borderColor = GOLD}
+                    />
+                    <button
+                        onClick={onSend}
+                        disabled={disabled}
+                        style={{
+                            background: GOLD, border: "none", borderRadius: 12,
+                            color: "#0f0f0f", fontFamily: "inherit",
+                            fontSize: 13, fontWeight: 500,
+                            padding: "14px 28px", cursor: disabled ? "not-allowed" : "pointer",
+                            opacity: disabled ? 0.5 : 1, whiteSpace: "nowrap",
+                        }}
+                        onMouseEnter={e => { if (!disabled) e.currentTarget.style.transform = "scale(1.02)" }}
+                        onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)" }}
+                    >
+                        Ask
+                    </button>
+                </div>
             </div>
-            {/* Mirror spacer on right to keep input truly centered */}
-            {hasSidebar && <div style={{ width: sidebarW, flexShrink: 0 }} />}
         </div>
     )
 }
