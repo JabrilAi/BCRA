@@ -183,7 +183,7 @@ function RotatingQuestion({ onAsk }) {
                 style={{
                     background: "transparent", border: "none", borderRadius: 100,
                     color: TEXT, fontFamily: "'Cormorant Garamond', serif",
-                    fontStyle: "italic", fontSize: 18, padding: "12px 28px",
+                    fontStyle: "italic", fontSize: 26, padding: "12px 28px",
                     cursor: "pointer", maxWidth: 560, lineHeight: 1.4,
                     transition: "opacity 0.4s ease, color 0.2s",
                     opacity: visible ? 1 : 0,
