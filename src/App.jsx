@@ -273,6 +273,82 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
     )
 }
 
+function InstallBanner() {
+    const [show, setShow] = useState(false)
+    const [prompt, setPrompt] = useState(null)
+
+    useEffect(() => {
+        // Only show on mobile
+        if (window.innerWidth > 768) return
+        // Don't show if already installed
+        if (window.matchMedia("(display-mode: standalone)").matches) return
+        // Listen for Chrome/Android install prompt
+        window.addEventListener("beforeinstallprompt", (e) => {
+            e.preventDefault()
+            setPrompt(e)
+            setShow(true)
+        })
+        // Show on iOS too (no beforeinstallprompt on Safari)
+        const isIOS = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase())
+        const isInStandalone = window.matchMedia("(display-mode: standalone)").matches
+        if (isIOS && !isInStandalone) setShow(true)
+    }, [])
+
+    if (!show) return null
+
+    async function install() {
+        if (prompt) {
+            prompt.prompt()
+            const result = await prompt.userChoice
+            if (result.outcome === "accepted") setShow(false)
+        }
+    }
+
+    return (
+        <div style={{
+            position: "fixed", bottom: 80, left: 16, right: 16,
+            background: "#1a1a1a", border: `1px solid ${GOLD}44`,
+            borderRadius: 14, padding: "14px 16px",
+            display: "flex", alignItems: "center", gap: 12,
+            zIndex: 200, boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
+        }}>
+            <span style={{ fontSize: 24 }}>📲</span>
+            <div style={{ flex: 1 }}>
+                <p style={{ color: TEXT, fontSize: 13, fontWeight: 500, marginBottom: 2 }}>
+                    Get the JabrilAI App
+                </p>
+                <p style={{ color: MUTED, fontSize: 11, lineHeight: 1.4 }}>
+                    Add to your home screen for the full app experience
+                </p>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                <button
+                    onClick={install}
+                    style={{
+                        background: GOLD, border: "none", borderRadius: 8,
+                        color: "#0f0f0f", fontFamily: "inherit",
+                        fontSize: 12, fontWeight: 600,
+                        padding: "7px 14px", cursor: "pointer",
+                        whiteSpace: "nowrap",
+                    }}
+                >
+                    Install
+                </button>
+                <button
+                    onClick={() => setShow(false)}
+                    style={{
+                        background: "none", border: "none",
+                        color: MUTED, fontFamily: "inherit",
+                        fontSize: 11, cursor: "pointer", padding: 0,
+                    }}
+                >
+                    Not now
+                </button>
+            </div>
+        </div>
+    )
+}
+
 function WelcomeScreen({ onChipClick, isMobile }) {
     return (
         <div style={{
@@ -951,6 +1027,8 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
         <div style={{ display: "flex", width: "100vw", height: "100vh", background: BG, color: TEXT, fontFamily: "'DM Sans', sans-serif", overflow: "hidden" }}>
             {/* Signup gate overlay */}
             {showGate && <SignupGate onAuth={handleAuth} isMobile={isMobile} />}
+            {/* Mobile install banner */}
+            <InstallBanner />
 
             {/* Sidebar only for logged-in users */}
             {!isMobile && user && (
