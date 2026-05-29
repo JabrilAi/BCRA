@@ -4,8 +4,9 @@ import logo from "../JAI-Logo-web.png"
 
 // ─── Supabase ────────────────────────────────────────────────────────────────
 const supabase = createClient(
-    "https://nixpunwfkmnsxkqfhzcc.supabase.co",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5peHB1bndma21uc3hrcWZoemNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MDAwMDcsImV4cCI6MjA5NDk3NjAwN30.xd2gNzXItM_yfhKe1nwnjBO4sDFyoyU5b3dFeqRdnyw"
+    const supabase = createClient(
+  "https://zvwtutvjdskkmfzfcfzx.supabase.co",   // ← change this
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2d3R1dHZqZHNra21memZjZnp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ2NzA5NDcsImV4cCI6MjA3MDI0Njk0N30.Ods_WduSQhHY0YU-v9TNY_HjZGA6FSCVkNFvl539z_w"            // ← and this
 )
 
 const FREE_LIMIT = 10
