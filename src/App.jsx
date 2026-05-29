@@ -4,7 +4,6 @@ import logo from "../JAI-Logo-web.png"
 
 // ─── Supabase ────────────────────────────────────────────────────────────────
 const supabase = createClient(
-    const supabase = createClient(
   "https://zvwtutvjdskkmfzfcfzx.supabase.co",   // ← change this
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2d3R1dHZqZHNra21memZjZnp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ2NzA5NDcsImV4cCI6MjA3MDI0Njk0N30.Ods_WduSQhHY0YU-v9TNY_HjZGA6FSCVkNFvl539z_w"            // ← and this
 )
