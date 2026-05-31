@@ -206,7 +206,7 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
             flexDirection: "column", height: "100vh", overflowY: "hidden", flexShrink: 0,
         }}>
             <div style={{ padding: "24px 20px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "center" }}>
-                <img src={logo} alt="Jabril AI" style={{ width: 80, height: "auto" }} />
+                <img src={logo} alt="Jabril AI" onClick={onNewChat} style={{ width: 80, height: "auto", cursor: "pointer" }} />
             </div>
             <div style={{ padding: "14px 12px 8px", display: "flex", flexDirection: "column", gap: 8 }}>
                 {/* User info + Sign Out */}
@@ -427,13 +427,12 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
                         <div style={{ fontSize: 17, lineHeight: 1.9, color: msg.role === "loading" ? GOLD : TEXT, fontFamily: "inherit", opacity: msg.role === "loading" ? 0.85 : 1 }}>
                             {msg.text.split("\n").map((line, i) => {
                                 if (line.trim() === "") return null
-                                // Detect section headers: short lines that don't start with * or • and aren't sentences
                                 const isHeader = msg.role === "ai" &&
                                     !line.trim().startsWith("*") &&
                                     !line.trim().startsWith("•") &&
                                     !line.trim().startsWith("-") &&
                                     line.trim().length < 60 &&
-                                    !line.trim().endsWith(".")  &&
+                                    !line.trim().endsWith(".") &&
                                     !line.trim().endsWith(",")
                                 return (
                                     <p key={i} style={{
@@ -473,9 +472,66 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
 }
 
 function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasSidebar }) {
-    // The outer div spans the full viewport width.
-    // marginLeft shifts the center point when sidebar is present.
+    const [listening, setListening]   = useState(false)
+    const [voiceError, setVoiceError] = useState("")
+    const recognitionRef              = useRef(null)
+    const silenceTimerRef             = useRef(null)
     const ml = hasSidebar ? 220 : 0
+
+    const supported = typeof window !== "undefined" &&
+        ("SpeechRecognition" in window || "webkitSpeechRecognition" in window)
+
+    function startListening() {
+        if (!supported) { setVoiceError("Voice not supported in this browser"); return }
+        setVoiceError("")
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+        const rec = new SR()
+        rec.lang = "en-US"
+        rec.interimResults = true
+        rec.continuous = true
+        recognitionRef.current = rec
+
+        rec.onstart = () => setListening(true)
+
+        rec.onresult = (e) => {
+            // Build transcript from all results
+            let transcript = ""
+            for (let i = 0; i < e.results.length; i++) {
+                transcript += e.results[i][0].transcript
+            }
+            // Update the input box
+            onChange({ target: { value: transcript } })
+
+            // Reset silence timer on every new result
+            clearTimeout(silenceTimerRef.current)
+            silenceTimerRef.current = setTimeout(() => {
+                rec.stop()
+            }, 2000) // 2s of silence = done
+        }
+
+        rec.onerror = (e) => {
+            setListening(false)
+            if (e.error !== "no-speech") setVoiceError("Mic error: " + e.error)
+        }
+
+        rec.onend = () => {
+            setListening(false)
+            clearTimeout(silenceTimerRef.current)
+            // Auto-submit on mobile, fill box on desktop
+            if (isMobile) {
+                setTimeout(() => onSend(), 100)
+            }
+        }
+
+        rec.start()
+    }
+
+    function stopListening() {
+        clearTimeout(silenceTimerRef.current)
+        recognitionRef.current?.stop()
+        setListening(false)
+    }
+
     return (
         <div style={{
             position: "fixed", bottom: 0,
@@ -485,6 +541,22 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
             paddingTop: isMobile ? 12 : 16,
             zIndex: 50,
         }}>
+            {voiceError && (
+                <div style={{ textAlign: "center", color: "#e74c3c", fontSize: 12, marginBottom: 6 }}>
+                    {voiceError}
+                </div>
+            )}
+            {listening && (
+                <div style={{ textAlign: "center", marginBottom: 8 }}>
+                    <span style={{
+                        color: GOLD, fontSize: 12, letterSpacing: "0.1em",
+                        textTransform: "uppercase", animation: "pulse 1.2s infinite",
+                    }}>
+                        ● Listening...
+                    </span>
+                    <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
+                </div>
+            )}
             <div style={{
                 marginLeft: ml,
                 display: "flex",
@@ -497,17 +569,44 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
                         value={value}
                         onChange={onChange}
                         onKeyDown={onKeyDown}
-                        placeholder="Ask Jabril..."
+                        placeholder={listening ? "Listening..." : "Ask Jabril..."}
                         disabled={disabled}
                         style={{
                             flex: 1, background: PANEL,
-                            border: `1px solid ${GOLD}`, borderRadius: 12,
+                            border: `1px solid ${listening ? GOLD : GOLD}`,
+                            borderRadius: 12,
                             color: TEXT, fontFamily: "inherit",
                             fontSize: 15, padding: "14px 18px", outline: "none",
+                            boxShadow: listening ? `0 0 0 2px ${GOLD}44` : "none",
+                            transition: "box-shadow 0.2s",
                         }}
                         onFocus={e => e.target.style.borderColor = GOLD}
                         onBlur={e => e.target.style.borderColor = GOLD}
                     />
+                    {/* Mic button — only show if browser supports it */}
+                    {supported && (
+                        <button
+                            onClick={listening ? stopListening : startListening}
+                            disabled={disabled}
+                            title={listening ? "Stop recording" : "Ask with voice"}
+                            style={{
+                                background: listening ? GOLD : "transparent",
+                                border: `1px solid ${listening ? GOLD : BORDER}`,
+                                borderRadius: 12,
+                                color: listening ? "#0f0f0f" : MUTED,
+                                padding: "14px 16px",
+                                cursor: disabled ? "not-allowed" : "pointer",
+                                opacity: disabled ? 0.5 : 1,
+                                fontSize: 18, lineHeight: 1,
+                                transition: "all 0.2s",
+                                flexShrink: 0,
+                            }}
+                            onMouseEnter={e => { if (!disabled && !listening) { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}}
+                            onMouseLeave={e => { if (!listening) { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED }}}
+                        >
+                            🎙️
+                        </button>
+                    )}
                     <button
                         onClick={onSend}
                         disabled={disabled}
