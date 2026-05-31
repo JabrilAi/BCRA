@@ -945,7 +945,7 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
 
         let sessionId = activeId
 
-        // Logged-in: always create a new session for each new question
+        // Logged-in: create a new session only when there isn't one already active
         if (user && !sessionId) {
             const title = query.slice(0, 60) + (query.length > 60 ? "…" : "")
             try {
@@ -973,7 +973,8 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
         try {
             const res = await fetch(WEBHOOK_URL, {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ query, sessionId: "researcher-session" }),
+                // Pass the real sessionId so n8n can track conversation history per user
+                body: JSON.stringify({ query, sessionId: sessionId ?? "anon" }),
             })
             if (!res.ok) throw new Error()
             const raw = await res.text()
