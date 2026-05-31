@@ -425,11 +425,29 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
                             )}
                         </div>
                         <div style={{ fontSize: 17, lineHeight: 1.9, color: msg.role === "loading" ? GOLD : TEXT, fontFamily: "inherit", opacity: msg.role === "loading" ? 0.85 : 1 }}>
-                            {msg.text.split("\n").map((line, i) => line.trim() === "" ? null : (
-                                <p key={i} style={{ marginBottom: line.startsWith("•") ? 10 : 6, paddingLeft: line.startsWith("•") ? 12 : 0 }}>
-                                    {line}
-                                </p>
-                            ))}
+                            {msg.text.split("\n").map((line, i) => {
+                                if (line.trim() === "") return null
+                                // Detect section headers: short lines that don't start with * or • and aren't sentences
+                                const isHeader = msg.role === "ai" &&
+                                    !line.trim().startsWith("*") &&
+                                    !line.trim().startsWith("•") &&
+                                    !line.trim().startsWith("-") &&
+                                    line.trim().length < 60 &&
+                                    !line.trim().endsWith(".")  &&
+                                    !line.trim().endsWith(",")
+                                return (
+                                    <p key={i} style={{
+                                        marginBottom: isHeader ? 8 : line.startsWith("•") ? 10 : 6,
+                                        marginTop: isHeader ? 16 : 0,
+                                        paddingLeft: line.startsWith("•") ? 12 : 0,
+                                        fontSize: isHeader ? 19 : 17,
+                                        fontWeight: isHeader ? 600 : "inherit",
+                                        color: isHeader ? GOLD : "inherit",
+                                    }}>
+                                        {line}
+                                    </p>
+                                )
+                            })}
                         </div>
                         {msg.role === "ai" && isMobile && (
                             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16, marginBottom: 8 }}>
@@ -945,7 +963,7 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
 
         let sessionId = activeId
 
-        // Logged-in: create a new session only when there isn't one already active
+        // Logged-in: always create a new session for each new question
         if (user && !sessionId) {
             const title = query.slice(0, 60) + (query.length > 60 ? "…" : "")
             try {
