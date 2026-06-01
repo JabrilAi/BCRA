@@ -276,76 +276,123 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
 function InstallBanner() {
     const [show, setShow] = useState(false)
     const [prompt, setPrompt] = useState(null)
+    const [isIOS, setIsIOS] = useState(false)
+    const [showIOSInstructions, setShowIOSInstructions] = useState(false)
 
     useEffect(() => {
         // Only show on mobile
         if (window.innerWidth > 768) return
         // Don't show if already installed
         if (window.matchMedia("(display-mode: standalone)").matches) return
+
+        const ios = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase())
+        setIsIOS(ios)
+
         // Listen for Chrome/Android install prompt
         window.addEventListener("beforeinstallprompt", (e) => {
             e.preventDefault()
             setPrompt(e)
             setShow(true)
         })
+
         // Show on iOS too (no beforeinstallprompt on Safari)
-        const isIOS = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase())
-        const isInStandalone = window.matchMedia("(display-mode: standalone)").matches
-        if (isIOS && !isInStandalone) setShow(true)
+        if (ios) setShow(true)
     }, [])
 
     if (!show) return null
 
     async function install() {
         if (prompt) {
+            // Android / Chrome — native install dialog
             prompt.prompt()
             const result = await prompt.userChoice
             if (result.outcome === "accepted") setShow(false)
+        } else if (isIOS) {
+            // iOS Safari — no install API, show step-by-step instructions
+            setShowIOSInstructions(true)
         }
     }
 
     return (
-        <div style={{
-            position: "fixed", bottom: 80, left: 16, right: 16,
-            background: "#1a1a1a", border: `1px solid ${GOLD}44`,
-            borderRadius: 14, padding: "14px 16px",
-            display: "flex", alignItems: "center", gap: 12,
-            zIndex: 200, boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
-        }}>
-            <span style={{ fontSize: 24 }}>📲</span>
-            <div style={{ flex: 1 }}>
-                <p style={{ color: TEXT, fontSize: 13, fontWeight: 500, marginBottom: 2 }}>
-                    Get the JabrilAI App
-                </p>
-                <p style={{ color: MUTED, fontSize: 11, lineHeight: 1.4 }}>
-                    Add to your home screen for the full app experience
-                </p>
+        <>
+            <div style={{
+                position: "fixed", bottom: 80, left: 16, right: 16,
+                background: "#1a1a1a", border: `1px solid ${GOLD}44`,
+                borderRadius: 14, padding: "14px 16px",
+                display: "flex", alignItems: "center", gap: 12,
+                zIndex: 200, boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
+            }}>
+                <span style={{ fontSize: 24 }}>📲</span>
+                <div style={{ flex: 1 }}>
+                    <p style={{ color: TEXT, fontSize: 13, fontWeight: 500, marginBottom: 2 }}>
+                        Get the JabrilAI App
+                    </p>
+                    <p style={{ color: MUTED, fontSize: 11, lineHeight: 1.4 }}>
+                        Add to your home screen for the full app experience
+                    </p>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                    <button
+                        onClick={install}
+                        style={{
+                            background: GOLD, border: "none", borderRadius: 8,
+                            color: "#0f0f0f", fontFamily: "inherit",
+                            fontSize: 12, fontWeight: 600,
+                            padding: "7px 14px", cursor: "pointer",
+                            whiteSpace: "nowrap",
+                        }}
+                    >
+                        Install
+                    </button>
+                    <button
+                        onClick={() => setShow(false)}
+                        style={{
+                            background: "none", border: "none",
+                            color: MUTED, fontFamily: "inherit",
+                            fontSize: 11, cursor: "pointer", padding: 0,
+                        }}
+                    >
+                        Not now
+                    </button>
+                </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-                <button
-                    onClick={install}
-                    style={{
-                        background: GOLD, border: "none", borderRadius: 8,
-                        color: "#0f0f0f", fontFamily: "inherit",
-                        fontSize: 12, fontWeight: 600,
-                        padding: "7px 14px", cursor: "pointer",
-                        whiteSpace: "nowrap",
-                    }}
-                >
-                    Install
-                </button>
-                <button
-                    onClick={() => setShow(false)}
-                    style={{
-                        background: "none", border: "none",
-                        color: MUTED, fontFamily: "inherit",
-                        fontSize: 11, cursor: "pointer", padding: 0,
-                    }}
-                >
-                    Not now
-                </button>
-            </div>
-        </div>
+
+            {/* iOS step-by-step install instructions */}
+            {showIOSInstructions && (
+                <div style={{
+                    position: "fixed", bottom: 200, left: 16, right: 16,
+                    background: "#1e1e1e", border: `1px solid ${GOLD}66`,
+                    borderRadius: 16, padding: "20px",
+                    zIndex: 201, boxShadow: "0 8px 32px rgba(0,0,0,0.7)",
+                }}>
+                    <p style={{ color: GOLD, fontSize: 14, fontWeight: 700, marginBottom: 14, letterSpacing: "0.04em" }}>
+                        Add to Home Screen
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+                        <p style={{ color: TEXT, fontSize: 13, lineHeight: 1.6 }}>
+                            <span style={{ color: GOLD, fontWeight: 700 }}>1.</span> Tap the <strong>Share</strong> button (the box with an arrow) at the bottom of Safari
+                        </p>
+                        <p style={{ color: TEXT, fontSize: 13, lineHeight: 1.6 }}>
+                            <span style={{ color: GOLD, fontWeight: 700 }}>2.</span> Scroll down and tap <strong>"Add to Home Screen"</strong>
+                        </p>
+                        <p style={{ color: TEXT, fontSize: 13, lineHeight: 1.6 }}>
+                            <span style={{ color: GOLD, fontWeight: 700 }}>3.</span> Tap <strong>Add</strong> in the top-right corner
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => { setShowIOSInstructions(false); setShow(false) }}
+                        style={{
+                            width: "100%", background: GOLD, border: "none",
+                            borderRadius: 10, color: "#0f0f0f",
+                            fontFamily: "inherit", fontSize: 13, fontWeight: 700,
+                            padding: "11px", cursor: "pointer",
+                        }}
+                    >
+                        Got it ✓
+                    </button>
+                </div>
+            )}
+        </>
     )
 }
 
@@ -1127,6 +1174,8 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
     }
 
     function handleAuth(newUser) {
+        // Clear anon question counter so logged-in users never see the quota bar again
+        localStorage.removeItem(STORAGE_KEY)
         setShowGate(false)
         onAuthNeeded(newUser)
     }
@@ -1212,7 +1261,11 @@ export default function App() {
 
     // Returning user explicitly clicked Sign In
     if (showLogin && !user) {
-        return <AuthScreen onAuth={u => { setUser(u); setShowLogin(false) }} />
+        return <AuthScreen onAuth={u => {
+            localStorage.removeItem(STORAGE_KEY)  // clear anon counter on login
+            setUser(u)
+            setShowLogin(false)
+        }} />
     }
 
     // All users (anonymous or logged in) go straight to the app
@@ -1224,3 +1277,4 @@ export default function App() {
         />
     )
 }
+
