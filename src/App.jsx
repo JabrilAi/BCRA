@@ -546,27 +546,39 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
 
         rec.onstart = () => setListening(true)
 
+        let finalText = ""  // accumulates confirmed final text across results
+
+        // Fix common speech-to-text mishearings of "Jabril"
+        function cleanTranscript(text) {
+            return text
+                .replace(/\bJabra\b/gi, "Jabril")
+                .replace(/\bJabber\b/gi, "Jabril")
+                .replace(/\bGabriel\b/gi, "Jabril")
+                .replace(/\bJabril\s+Jabril\b/gi, "Jabril") // catch any remaining doubles
+                .trim()
+        }
+
         rec.onresult = (e) => {
-            let finalTranscript = ""
             let interimTranscript = ""
 
-            for (let i = 0; i < e.results.length; i++) {
+            // Only process NEW results starting from resultIndex
+            for (let i = e.resultIndex; i < e.results.length; i++) {
                 const text = e.results[i][0].transcript
                 if (e.results[i].isFinal) {
-                    finalTranscript += text + " "
+                    finalText += text + " "
                 } else {
-                    interimTranscript += text
+                    interimTranscript = text
                 }
             }
 
-            // Show final text + live interim preview
-            onChange({ target: { value: (finalTranscript + interimTranscript).trim() } })
+            // Show confirmed text + live interim preview, cleaned up
+            onChange({ target: { value: cleanTranscript((finalText + interimTranscript).trim()) } })
 
             // Reset silence timer on every new result
             clearTimeout(silenceTimerRef.current)
             silenceTimerRef.current = setTimeout(() => {
                 rec.stop()
-            }, 2000) // 2s of silence = done
+            }, 2000)
         }
 
         rec.onerror = (e) => {
