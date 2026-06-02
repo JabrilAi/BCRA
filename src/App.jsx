@@ -537,70 +537,95 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
     function startListening() {
         if (!supported) { setVoiceError("Voice not supported in this browser"); return }
         setVoiceError("")
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-        const rec = new SR()
-        rec.lang = "en-US"
-        rec.interimResults = true
-        rec.continuous = true
-        recognitionRef.current = rec
 
-        rec.onstart = () => setListening(true)
-
-        let finalText = ""  // accumulates confirmed final text across results
+        let accumulatedText = ""  // total confirmed text across all sessions
+        let isActive = true       // flag to stop restart loop
 
         // Fix common speech-to-text mishearings of "Jabril"
         function cleanTranscript(text) {
             return text
                 .replace(/\bJabra\b/gi, "Jabril")
+                .replace(/\bJabriel\b/gi, "Jabril")
                 .replace(/\bJabber\b/gi, "Jabril")
                 .replace(/\bGabriel\b/gi, "Jabril")
-                .replace(/\bJabril\s+Jabril\b/gi, "Jabril") // catch any remaining doubles
+                .replace(/\bJabriel\b/gi, "Jabril")
+                .replace(/(\bJabril\b\s*){2,}/gi, "Jabril ")
                 .trim()
         }
 
-        rec.onresult = (e) => {
-            let interimTranscript = ""
+        function createSession() {
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+            const rec = new SR()
+            rec.lang = "en-US"
+            rec.interimResults = true
+            rec.continuous = false   // OFF — prevents Android double-firing
+            rec.maxAlternatives = 1
+            recognitionRef.current = rec
 
-            // Only process NEW results starting from resultIndex
-            for (let i = e.resultIndex; i < e.results.length; i++) {
-                const text = e.results[i][0].transcript
-                if (e.results[i].isFinal) {
-                    finalText += text + " "
-                } else {
-                    interimTranscript = text
+            rec.onstart = () => setListening(true)
+
+            rec.onresult = (e) => {
+                let sessionFinal = ""
+                let sessionInterim = ""
+
+                for (let i = 0; i < e.results.length; i++) {
+                    if (e.results[i].isFinal) {
+                        sessionFinal += e.results[i][0].transcript + " "
+                    } else {
+                        sessionInterim = e.results[i][0].transcript
+                    }
+                }
+
+                const display = cleanTranscript((accumulatedText + sessionFinal + sessionInterim).trim())
+                onChange({ target: { value: display } })
+
+                // Lock in final text for this session
+                if (sessionFinal) {
+                    accumulatedText = cleanTranscript((accumulatedText + sessionFinal).trim()) + " "
+                }
+
+                // Reset silence timer
+                clearTimeout(silenceTimerRef.current)
+                silenceTimerRef.current = setTimeout(() => {
+                    isActive = false
+                    rec.stop()
+                }, 2200)
+            }
+
+            rec.onerror = (e) => {
+                if (e.error === "no-speech" && isActive) {
+                    // Restart silently on no-speech
+                    try { rec.stop() } catch(_) {}
+                } else if (e.error !== "aborted") {
+                    setListening(false)
+                    setVoiceError("Mic error: " + e.error)
+                    isActive = false
                 }
             }
 
-            // Show confirmed text + live interim preview, cleaned up
-            onChange({ target: { value: cleanTranscript((finalText + interimTranscript).trim()) } })
-
-            // Reset silence timer on every new result
-            clearTimeout(silenceTimerRef.current)
-            silenceTimerRef.current = setTimeout(() => {
-                rec.stop()
-            }, 2000)
-        }
-
-        rec.onerror = (e) => {
-            setListening(false)
-            if (e.error !== "no-speech") setVoiceError("Mic error: " + e.error)
-        }
-
-        rec.onend = () => {
-            setListening(false)
-            clearTimeout(silenceTimerRef.current)
-            // Auto-submit on mobile, fill box on desktop
-            if (isMobile) {
-                setTimeout(() => onSend(), 100)
+            rec.onend = () => {
+                if (isActive) {
+                    // Restart to keep listening
+                    try { createSession() } catch(_) { setListening(false) }
+                } else {
+                    setListening(false)
+                    clearTimeout(silenceTimerRef.current)
+                    if (isMobile) setTimeout(() => onSend(), 100)
+                }
             }
+
+            try { rec.start() } catch(_) { setListening(false) }
         }
 
-        rec.start()
+        createSession()
     }
 
     function stopListening() {
         clearTimeout(silenceTimerRef.current)
-        recognitionRef.current?.stop()
+        if (recognitionRef.current) {
+            try { recognitionRef.current.abort() } catch(_) {}
+            recognitionRef.current = null
+        }
         setListening(false)
     }
 
