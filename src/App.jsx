@@ -644,9 +644,9 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
                             title={listening ? "Stop recording" : "Ask with voice"}
                             style={{
                                 background: listening ? GOLD : "transparent",
-                                border: `1px solid ${listening ? GOLD : BORDER}`,
+                                border: `1.5px solid ${GOLD}`,
                                 borderRadius: 12,
-                                color: listening ? "#0f0f0f" : MUTED,
+                                color: listening ? "#0f0f0f" : GOLD,
                                 padding: "14px 16px",
                                 cursor: disabled ? "not-allowed" : "pointer",
                                 opacity: disabled ? 0.5 : 1,
@@ -654,8 +654,8 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
                                 transition: "all 0.2s",
                                 flexShrink: 0,
                             }}
-                            onMouseEnter={e => { if (!disabled && !listening) { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}}
-                            onMouseLeave={e => { if (!listening) { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED }}}
+                            onMouseEnter={e => { if (!disabled && !listening) e.currentTarget.style.opacity = "0.8" }}
+                            onMouseLeave={e => { if (!listening) e.currentTarget.style.opacity = "1" }}
                         >
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                                 <rect x="9" y="2" width="6" height="11" rx="3"/>
