@@ -547,13 +547,20 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
         rec.onstart = () => setListening(true)
 
         rec.onresult = (e) => {
-            // Build transcript from all results
-            let transcript = ""
+            let finalTranscript = ""
+            let interimTranscript = ""
+
             for (let i = 0; i < e.results.length; i++) {
-                transcript += e.results[i][0].transcript
+                const text = e.results[i][0].transcript
+                if (e.results[i].isFinal) {
+                    finalTranscript += text + " "
+                } else {
+                    interimTranscript += text
+                }
             }
-            // Update the input box
-            onChange({ target: { value: transcript } })
+
+            // Show final text + live interim preview
+            onChange({ target: { value: (finalTranscript + interimTranscript).trim() } })
 
             // Reset silence timer on every new result
             clearTimeout(silenceTimerRef.current)
