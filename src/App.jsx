@@ -10,6 +10,12 @@ const supabase = createClient(
 
 const FREE_LIMIT = 10
 const STORAGE_KEY = "jabrilai_questions_used"
+const REGISTERED_KEY = "jabrilai_has_registered"
+
+function isPWA() {
+    return window.matchMedia("(display-mode: standalone)").matches ||
+        window.navigator.standalone === true
+}
 
 // ─── Anonymous question counter (browser storage) ────────────────────────────
 function getAnonCount() {
@@ -745,18 +751,20 @@ function QuotaBar({ used, isLoggedIn, isMobile, onRegisterClick }) {
     )
 }
 
-// ─── Signup Gate (shown after 10 free questions) ──────────────────────────────
-function SignupGate({ onAuth, isMobile }) {
-    const [tab, setTab]         = useState("signup")
-    const [email, setEmail]     = useState("")
-    const [password, setPass]   = useState("")
-    const [name, setName]       = useState("")
-    const [loading, setLoading] = useState(false)
-    const [error, setError]     = useState("")
+// ─── Signup Gate (shown after 10 free questions, or on app open) ─────────────
+function SignupGate({ onAuth, onGuest, isMobile, forcePWA = false, headline, subtext }) {
+    const hasRegistered = !!localStorage.getItem(REGISTERED_KEY)
+    const [tab, setTab]           = useState(hasRegistered ? "login" : "signup")
+    const [email, setEmail]       = useState("")
+    const [password, setPass]     = useState("")
+    const [name, setName]         = useState("")
+    const [loading, setLoading]   = useState(false)
+    const [error, setError]       = useState("")
     const [showPass, setShowPass] = useState(false)
+    const [success, setSuccess]   = useState("")
 
     async function submit() {
-        setError(""); setLoading(true)
+        setError(""); setSuccess(""); setLoading(true)
         try {
             if (tab === "signup") {
                 const { data, error: e } = await supabase.auth.signUp({
@@ -764,10 +772,17 @@ function SignupGate({ onAuth, isMobile }) {
                     options: { data: { full_name: name } },
                 })
                 if (e) throw e
-                if (data.user) onAuth(data.user)
+                if (data.user && !data.session) {
+                    setSuccess("Check your email to confirm your account, then sign in.")
+                    setTab("login")
+                } else if (data.user) {
+                    localStorage.setItem(REGISTERED_KEY, "1")
+                    onAuth(data.user)
+                }
             } else {
                 const { data, error: e } = await supabase.auth.signInWithPassword({ email, password })
                 if (e) throw e
+                localStorage.setItem(REGISTERED_KEY, "1")
                 onAuth(data.user)
             }
         } catch(e) {
@@ -787,13 +802,20 @@ function SignupGate({ onAuth, isMobile }) {
         boxSizing: "border-box",
     }
 
+    const defaultHeadline = tab === "login" ? "Welcome back" : "Continue your research"
+    const defaultSubtext  = tab === "login"
+        ? "Sign in to access your saved research history."
+        : forcePWA
+            ? "Create a free account to get started with the full Jabril AI experience."
+            : "Create a free account to unlock unlimited access and keep your full research history."
+
     return (
         <div style={{
             position: "fixed", inset: 0,
-            background: "rgba(0,0,0,0.85)",
+            background: forcePWA ? BG : "rgba(0,0,0,0.85)",
             display: "flex", alignItems: "center", justifyContent: "center",
             zIndex: 100, padding: "20px",
-            backdropFilter: "blur(4px)",
+            backdropFilter: forcePWA ? "none" : "blur(4px)",
         }}>
             <div style={{
                 width: "100%", maxWidth: 420,
@@ -809,28 +831,31 @@ function SignupGate({ onAuth, isMobile }) {
                     fontSize: 26, color: TEXT, textAlign: "center",
                     marginBottom: 8, lineHeight: 1.3,
                 }}>
-                    Continue your research
+                    {headline || defaultHeadline}
                 </h2>
                 <p style={{ color: MUTED, fontSize: 14, textAlign: "center", marginBottom: 24, lineHeight: 1.6 }}>
-                    You've explored {FREE_LIMIT} questions. Create a free account to unlock unlimited access and save your research history.
+                    {subtext || defaultSubtext}
                 </p>
 
-                {/* Tabs */}
-                <div style={{ display: "flex", gap: 2, background: BG, borderRadius: 8, padding: 3, marginBottom: 24 }}>
-                    {["signup", "login"].map(t => (
-                        <button key={t} onClick={() => { setTab(t); setError("") }} style={{
-                            flex: 1, padding: "9px", border: "none", borderRadius: 6,
-                            background: tab === t ? PANEL : "transparent",
-                            color: tab === t ? TEXT : MUTED,
-                            fontFamily: "inherit", fontSize: 13, fontWeight: 500,
-                            cursor: "pointer", transition: "all 0.2s",
-                        }}>
-                            {t === "signup" ? "Create Account" : "Sign In"}
-                        </button>
-                    ))}
-                </div>
+                {/* Tabs — hide signup tab if already registered */}
+                {!hasRegistered && (
+                    <div style={{ display: "flex", gap: 2, background: BG, borderRadius: 8, padding: 3, marginBottom: 24 }}>
+                        {["signup", "login"].map(t => (
+                            <button key={t} onClick={() => { setTab(t); setError(""); setSuccess("") }} style={{
+                                flex: 1, padding: "9px", border: "none", borderRadius: 6,
+                                background: tab === t ? PANEL : "transparent",
+                                color: tab === t ? TEXT : MUTED,
+                                fontFamily: "inherit", fontSize: 13, fontWeight: 500,
+                                cursor: "pointer", transition: "all 0.2s",
+                            }}>
+                                {t === "signup" ? "Create Account" : "Sign In"}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
-                {error && <p style={{ color: "#e74c3c", background: "#e74c3c18", border: "1px solid #e74c3c30", borderRadius: 6, padding: "9px 12px", fontSize: 13, marginBottom: 14 }}>{error}</p>}
+                {error   && <p style={{ color: "#e74c3c", background: "#e74c3c18", border: "1px solid #e74c3c30", borderRadius: 6, padding: "9px 12px", fontSize: 13, marginBottom: 14 }}>{error}</p>}
+                {success && <p style={{ color: "#27ae60", background: "#27ae6018", border: "1px solid #27ae6030", borderRadius: 6, padding: "9px 12px", fontSize: 13, marginBottom: 14 }}>{success}</p>}
 
                 {tab === "signup" && (
                     <div style={{ marginBottom: 14 }}>
@@ -865,6 +890,28 @@ function SignupGate({ onAuth, isMobile }) {
                 >
                     {loading ? "Please wait…" : tab === "signup" ? "Create Free Account" : "Sign In"}
                 </button>
+
+                {/* Continue as Guest — only on browser (non-PWA) */}
+                {!forcePWA && onGuest && (
+                    <div style={{ marginTop: 20, textAlign: "center" }}>
+                        <button
+                            onClick={onGuest}
+                            style={{
+                                background: "none", border: "none",
+                                color: MUTED, fontFamily: "inherit",
+                                fontSize: 13, cursor: "pointer", padding: 0,
+                                textDecoration: "underline", textUnderlineOffset: 3,
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.color = TEXT}
+                            onMouseLeave={e => e.currentTarget.style.color = MUTED}
+                        >
+                            Continue as Guest
+                        </button>
+                        <p style={{ color: MUTED, fontSize: 11, marginTop: 8, lineHeight: 1.5 }}>
+                            ✦ Guests get {FREE_LIMIT} free questions — register free to save your history
+                        </p>
+                    </div>
+                )}
             </div>
         </div>
     )
@@ -1176,6 +1223,7 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
     function handleAuth(newUser) {
         // Clear anon question counter so logged-in users never see the quota bar again
         localStorage.removeItem(STORAGE_KEY)
+        localStorage.setItem(REGISTERED_KEY, "1")
         setShowGate(false)
         onAuthNeeded(newUser)
     }
@@ -1193,7 +1241,18 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
     return (
         <div style={{ display: "flex", width: "100vw", height: "100vh", background: BG, color: TEXT, fontFamily: "'DM Sans', sans-serif", overflow: "hidden" }}>
             {/* Signup gate overlay */}
-            {showGate && <SignupGate onAuth={handleAuth} isMobile={isMobile} />}
+            {showGate && (
+                <SignupGate
+                    onAuth={handleAuth}
+                    onGuest={isPWA() ? null : () => setShowGate(false)}
+                    isMobile={isMobile}
+                    forcePWA={isPWA()}
+                    headline={questionsUsed >= FREE_LIMIT ? "Continue your research" : undefined}
+                    subtext={questionsUsed >= FREE_LIMIT
+                        ? `You've explored ${FREE_LIMIT} questions. Create a free account to unlock unlimited access and save your research history.`
+                        : undefined}
+                />
+            )}
             {/* Mobile install banner */}
             <InstallBanner />
 
@@ -1232,8 +1291,8 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 export default function App() {
-    const [user, setUser]         = useState(undefined)
-    const [showLogin, setShowLogin] = useState(false)
+    const [user, setUser]           = useState(undefined)
+    const [guestAllowed, setGuest]  = useState(false)
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data }) => {
@@ -1248,6 +1307,14 @@ export default function App() {
     async function handleSignOut() {
         await supabase.auth.signOut()
         setUser(null)
+        setGuest(false)
+    }
+
+    function handleAuth(u) {
+        localStorage.removeItem(STORAGE_KEY)
+        localStorage.setItem(REGISTERED_KEY, "1")
+        setUser(u)
+        setGuest(false)
     }
 
     // Still checking session
@@ -1259,19 +1326,57 @@ export default function App() {
         )
     }
 
-    // Returning user explicitly clicked Sign In
-    if (showLogin && !user) {
-        return <AuthScreen onAuth={u => {
-            localStorage.removeItem(STORAGE_KEY)  // clear anon counter on login
-            setUser(u)
-            setShowLogin(false)
-        }} />
+    // Logged-in user — go straight to app
+    if (user) {
+        return (
+            <MainApp
+                user={user}
+                onSignOut={handleSignOut}
+                onAuthNeeded={setUser}
+            />
+        )
     }
 
-    // All users (anonymous or logged in) go straight to the app
+    const pwa       = isPWA()
+    const isMobile  = window.innerWidth < 768
+    const hasReg    = !!localStorage.getItem(REGISTERED_KEY)
+
+    // PWA install — must register, no guest
+    if (pwa && !guestAllowed) {
+        return (
+            <SignupGate
+                onAuth={handleAuth}
+                onGuest={null}
+                isMobile={isMobile}
+                forcePWA={true}
+                headline={hasReg ? "Welcome back" : "Join Jabril AI"}
+                subtext={hasReg
+                    ? "Sign in to continue your research."
+                    : "Create a free account to get started with the full Jabril AI experience."}
+            />
+        )
+    }
+
+    // Browser visit — show gate with guest option; guest proceeds into app anonymously
+    if (!guestAllowed) {
+        return (
+            <SignupGate
+                onAuth={handleAuth}
+                onGuest={() => setGuest(true)}
+                isMobile={isMobile}
+                forcePWA={false}
+                headline={hasReg ? "Welcome back" : "Welcome to Jabril AI"}
+                subtext={hasReg
+                    ? "Sign in to access your research history."
+                    : "Create a free account to save your history, or continue as a guest with 10 free questions."}
+            />
+        )
+    }
+
+    // Guest in browser — full anonymous app experience
     return (
         <MainApp
-            user={user}
+            user={null}
             onSignOut={handleSignOut}
             onAuthNeeded={setUser}
         />
