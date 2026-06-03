@@ -281,20 +281,23 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
 
 function InstallBanner({ triggerShow = false }) {
     const [show, setShow] = useState(false)
-    const [prompt, setPrompt] = useState(null)
     const [isIOS, setIsIOS] = useState(false)
     const [showIOSInstructions, setShowIOSInstructions] = useState(false)
+    // Use a ref so the install prompt is always current inside event handlers
+    const promptRef = useRef(null)
 
     useEffect(() => {
         // Don't show if already installed as PWA
         if (window.matchMedia("(display-mode: standalone)").matches) return
         const ios = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase())
         setIsIOS(ios)
-        // Capture the install prompt but don't show yet — wait for triggerShow
-        window.addEventListener("beforeinstallprompt", (e) => {
+        // Capture the Chrome/Android install prompt into a ref
+        const handler = (e) => {
             e.preventDefault()
-            setPrompt(e)
-        })
+            promptRef.current = e
+        }
+        window.addEventListener("beforeinstallprompt", handler)
+        return () => window.removeEventListener("beforeinstallprompt", handler)
     }, [])
 
     // Show the banner when parent signals it's time (right after sign-in)
@@ -308,13 +311,19 @@ function InstallBanner({ triggerShow = false }) {
     if (!show) return null
 
     async function install() {
-        if (prompt) {
-            // Android / Chrome — native install dialog
-            prompt.prompt()
-            const result = await prompt.userChoice
-            if (result.outcome === "accepted") setShow(false)
-        } else if (isIOS) {
-            // iOS Safari — no install API, show step-by-step instructions
+        if (promptRef.current) {
+            // Android / Chrome — trigger the native install dialog
+            try {
+                await promptRef.current.prompt()
+                const result = await promptRef.current.userChoice
+                if (result.outcome === "accepted") setShow(false)
+                else setShowIOSInstructions(false) // dismissed, leave banner
+            } catch(e) {
+                // prompt() can only be called once; fall through to manual instructions
+                setShowIOSInstructions(true)
+            }
+        } else {
+            // iOS Safari (no beforeinstallprompt) or prompt already used — show manual steps
             setShowIOSInstructions(true)
         }
     }
