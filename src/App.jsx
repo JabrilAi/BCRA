@@ -4,17 +4,19 @@ import logo from "../JAI-Logo-web.png"
 
 // ─── Supabase ────────────────────────────────────────────────────────────────
 const supabase = createClient(
-  "https://zvwtutvjdskkmfzfcfzx.supabase.co",   // ← change this
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2d3R1dHZqZHNra21memZjZnp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ2NzA5NDcsImV4cCI6MjA3MDI0Njk0N30.Ods_WduSQhHY0YU-v9TNY_HjZGA6FSCVkNFvl539z_w"            // ← and this
+  import.meta.env.VITE_SUPABASE_URL || "https://zvwtutvjdskkmfzfcfzx.supabase.co",
+  import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2d3R1dHZqZHNra21memZjZnp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ2NzA5NDcsImV4cCI6MjA3MDI0Njk0N30.Ods_WduSQhHY0YU-v9TNY_HjZGA6FSCVkNFvl539z_w"
 )
 
-// Capture the Android/Chrome install prompt as early as possible at module load
-// so it's available no matter when the user clicks Install
+// Capture the Android/Chrome install prompt as early as possible.
+// Guarded so Vercel/SSR builds never crash on "window is not defined".
 let _installPrompt = null
-window.addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault()
-    _installPrompt = e
-})
+if (typeof window !== "undefined") {
+    window.addEventListener("beforeinstallprompt", (e) => {
+        e.preventDefault()
+        _installPrompt = e
+    })
+}
 
 const FREE_LIMIT = 10
 const STORAGE_KEY = "jabrilai_questions_used"
@@ -147,10 +149,19 @@ function shareMessage(question, answer) {
     }
 }
 
+function escapeHTML(value = "") {
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;")
+}
+
 function printConversation(messages) {
     const content = messages
         .filter(m => m.role !== "loading")
-        .map(m => `<div class="${m.role}"><strong>${m.role === "user" ? "You" : "Jabril AI"}</strong><p>${m.text.replace(/\n/g, "<br/>")}</p></div>`)
+        .map(m => `<div class="${m.role}"><strong>${m.role === "user" ? "You" : "Jabril AI"}</strong><p>${escapeHTML(m.text).replace(/\n/g, "<br/>")}</p></div>`)
         .join("")
     const win = window.open("", "_blank")
     win.document.write(`
@@ -458,8 +469,251 @@ function WelcomeScreen({ onChipClick, isMobile }) {
     )
 }
 
+// ─── Translation Infrastructure ──────────────────────────────────────────────
+
+const FAVORITE_LANGUAGES = ["English", "Spanish", "French", "Swahili", "Medu Neter"]
+
+const MORE_LANGUAGES = [
+    "Afrikaans", "Albanian", "Amharic", "Arabic", "Armenian", "Azerbaijani",
+    "Basque", "Belarusian", "Bengali", "Bosnian", "Bulgarian", "Catalan",
+    "Cebuano", "Chinese (Simplified)", "Chinese (Traditional)", "Corsican",
+    "Croatian", "Czech", "Danish", "Dutch", "Esperanto", "Estonian",
+    "Finnish", "Frisian", "Galician", "Georgian", "German", "Greek",
+    "Gujarati", "Haitian Creole", "Hausa", "Hawaiian", "Hebrew", "Hindi",
+    "Hmong", "Hungarian", "Icelandic", "Igbo", "Indonesian", "Irish",
+    "Italian", "Japanese", "Javanese", "Kannada", "Kazakh", "Khmer",
+    "Kinyarwanda", "Korean", "Kurdish", "Kyrgyz", "Lao", "Latin", "Latvian",
+    "Lithuanian", "Luxembourgish", "Macedonian", "Malagasy", "Malay",
+    "Malayalam", "Maltese", "Maori", "Marathi", "Mongolian", "Myanmar",
+    "Nepali", "Norwegian", "Nyanja", "Odia", "Pashto", "Persian", "Polish",
+    "Portuguese", "Punjabi", "Romanian", "Russian", "Samoan", "Scots Gaelic",
+    "Serbian", "Sesotho", "Shona", "Sindhi", "Sinhala", "Slovak", "Slovenian",
+    "Somali", "Sundanese", "Tagalog", "Tajik", "Tamil", "Tatar", "Telugu",
+    "Thai", "Turkish", "Turkmen", "Ukrainian", "Urdu", "Uyghur", "Uzbek",
+    "Vietnamese", "Welsh", "Xhosa", "Yiddish", "Yoruba", "Zulu",
+].filter(l => !FAVORITE_LANGUAGES.includes(l))
+
+// BCRA citation pattern — these must NEVER be translated
+const BCRA_PATTERN = /(\[BCRA\s*•[^\]]+\])/g
+
+// Split text into translatable segments and protected citations
+function segmentText(text) {
+    const parts = []
+    let last = 0
+    let match
+    BCRA_PATTERN.lastIndex = 0
+    while ((match = BCRA_PATTERN.exec(text)) !== null) {
+        if (match.index > last) parts.push({ type: "text", value: text.slice(last, match.index) })
+        parts.push({ type: "citation", value: match[0] })
+        last = match.index + match[0].length
+    }
+    if (last < text.length) parts.push({ type: "text", value: text.slice(last) })
+    return parts
+}
+
+// Translate a single text block through our secure Vercel API route.
+// IMPORTANT: Never call OpenAI directly from the browser or expose an API key here.
+async function translateBlock(text, targetLanguage) {
+    if (!text.trim()) return text
+
+    const res = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, targetLanguage }),
+    })
+
+    let data = null
+    try {
+        data = await res.json()
+    } catch (_) {}
+
+    if (!res.ok) {
+        throw new Error(data?.error || `Translation API error: ${res.status}`)
+    }
+
+    return data?.translation?.trim() || text
+}
+
+// Translate full message text, protecting BCRA citations
+async function translateMessage(originalText, targetLanguage) {
+    const segments = segmentText(originalText)
+    const textSegments = segments.filter(s => s.type === "text")
+
+    // Batch all text segments into one API call for efficiency
+    const combined = textSegments.map((s, i) => `<<<SEGMENT_${i}>>>\n${s.value}`).join("\n\n")
+    let translatedCombined = combined
+    if (combined.trim()) {
+        translatedCombined = await translateBlock(combined, targetLanguage)
+    }
+
+    // Re-extract translated segments
+    const translatedSegments = {}
+    textSegments.forEach((_, i) => {
+        const marker = `<<<SEGMENT_${i}>>>`
+        const nextMarker = `<<<SEGMENT_${i + 1}>>>`
+        const start = translatedCombined.indexOf(marker)
+        if (start === -1) { translatedSegments[i] = textSegments[i].value; return }
+        const contentStart = start + marker.length
+        const end = translatedCombined.indexOf(nextMarker, contentStart)
+        translatedSegments[i] = (end === -1
+            ? translatedCombined.slice(contentStart)
+            : translatedCombined.slice(contentStart, end)
+        ).trim()
+    })
+
+    // Reassemble with protected citations intact
+    let textIdx = 0
+    return segments.map(s => {
+        if (s.type === "citation") return s.value
+        return translatedSegments[textIdx++] ?? s.value
+    }).join("")
+}
+
+// ─── Language Picker Dropdown ─────────────────────────────────────────────────
+function LanguagePicker({ onSelect, onClose, isMobile }) {
+    const [showMore, setShowMore]   = useState(false)
+    const [search, setSearch]       = useState("")
+    const ref                       = useRef(null)
+
+    useEffect(() => {
+        function handleClickOutside(e) {
+            if (ref.current && !ref.current.contains(e.target)) onClose()
+        }
+        document.addEventListener("mousedown", handleClickOutside)
+        return () => document.removeEventListener("mousedown", handleClickOutside)
+    }, [onClose])
+
+    const filtered = MORE_LANGUAGES.filter(l =>
+        l.toLowerCase().includes(search.toLowerCase())
+    )
+
+    const btnStyle = (hover) => ({
+        width: "100%", background: "transparent", border: "none",
+        color: TEXT, fontFamily: "inherit", fontSize: 13,
+        padding: "9px 14px", cursor: "pointer", textAlign: "left",
+        borderRadius: 6, transition: "background 0.15s, color 0.15s",
+    })
+
+    return (
+        <div ref={ref} style={{
+            position: isMobile ? "fixed" : "absolute",
+            bottom: isMobile ? 92 : "auto",
+            left: isMobile ? 16 : "auto",
+            right: isMobile ? 16 : 0,
+            top: isMobile ? "auto" : "calc(100% + 6px)",
+            zIndex: 300,
+            background: "#1c1c1c", border: `1px solid ${GOLD}44`,
+            borderRadius: 10, minWidth: isMobile ? "auto" : 200,
+            maxWidth: isMobile ? "calc(100vw - 32px)" : 280,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.7)",
+            overflow: "hidden",
+        }}>
+            <div style={{ padding: "8px 10px 4px", borderBottom: `1px solid ${BORDER}` }}>
+                <p style={{ fontSize: 10, color: MUTED, letterSpacing: "0.1em", textTransform: "uppercase", padding: "2px 4px 6px" }}>
+                    Translate to
+                </p>
+                {FAVORITE_LANGUAGES.map(lang => (
+                    <button key={lang}
+                        onClick={() => onSelect(lang)}
+                        style={btnStyle()}
+                        onMouseEnter={e => { e.currentTarget.style.background = `${GOLD}18`; e.currentTarget.style.color = GOLD }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = TEXT }}
+                    >
+                        {lang}
+                    </button>
+                ))}
+            </div>
+            {!showMore ? (
+                <div style={{ padding: "6px 10px 8px" }}>
+                    <button
+                        onClick={() => setShowMore(true)}
+                        style={{ ...btnStyle(), color: MUTED, fontSize: 12 }}
+                        onMouseEnter={e => { e.currentTarget.style.color = GOLD }}
+                        onMouseLeave={e => { e.currentTarget.style.color = MUTED }}
+                    >
+                        More Languages…
+                    </button>
+                </div>
+            ) : (
+                <div style={{ padding: "8px 10px" }}>
+                    <input
+                        autoFocus
+                        placeholder="Search languages…"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        style={{
+                            width: "100%", background: "#111", border: `1px solid ${BORDER}`,
+                            borderRadius: 6, color: TEXT, fontFamily: "inherit",
+                            fontSize: 12, padding: "7px 10px", outline: "none",
+                            boxSizing: "border-box", marginBottom: 6,
+                        }}
+                        onFocus={e => e.target.style.borderColor = GOLD}
+                        onBlur={e => e.target.style.borderColor = BORDER}
+                    />
+                    <div style={{ maxHeight: isMobile ? 300 : 220, overflowY: "auto" }}>
+                        {filtered.length === 0
+                            ? <p style={{ color: MUTED, fontSize: 12, padding: "6px 4px" }}>No results</p>
+                            : filtered.map(lang => (
+                                <button key={lang}
+                                    onClick={() => onSelect(lang)}
+                                    style={btnStyle()}
+                                    onMouseEnter={e => { e.currentTarget.style.background = `${GOLD}18`; e.currentTarget.style.color = GOLD }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = TEXT }}
+                                >
+                                    {lang}
+                                </button>
+                            ))
+                        }
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ─── Rendered Message Text ─────────────────────────────────────────────────────
+function MessageText({ text, role }) {
+    return (
+        <div style={{ fontSize: 17, lineHeight: 1.9, color: role === "loading" ? GOLD : TEXT, fontFamily: "inherit", opacity: role === "loading" ? 0.85 : 1 }}>
+            {text.split("\n").map((line, i) => {
+                if (line.trim() === "") return null
+                const isHeader = role === "ai" &&
+                    !line.trim().startsWith("*") &&
+                    !line.trim().startsWith("•") &&
+                    !line.trim().startsWith("-") &&
+                    line.trim().length < 60 &&
+                    !line.trim().endsWith(".") &&
+                    !line.trim().endsWith(",")
+                return (
+                    <p key={i} style={{
+                        marginBottom: isHeader ? 8 : line.startsWith("•") ? 10 : 6,
+                        marginTop: isHeader ? 16 : 0,
+                        paddingLeft: line.startsWith("•") ? 12 : 0,
+                        fontSize: isHeader ? 19 : 17,
+                        fontWeight: isHeader ? 600 : "inherit",
+                        color: isHeader ? GOLD : "inherit",
+                    }}>
+                        {line}
+                    </p>
+                )
+            })}
+        </div>
+    )
+}
+
+// ─── Chat Area ────────────────────────────────────────────────────────────────
 function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
-    const [copied, setCopied] = useState({})
+    const [copied, setCopied]           = useState({})
+    // translationCache: { [msgId]: { [language]: translatedText } }
+    const [translationCache, setCache]  = useState({})
+    // activeTab: { [msgId]: "original" | languageName }
+    const [activeTab, setActiveTab]     = useState({})
+    // translating: { [msgId]: true } while in-flight
+    const [translating, setTranslating] = useState({})
+    // translateError: { [msgId]: errorString }
+    const [translateError, setTranslateError] = useState({})
+    // showPicker: msgId | null
+    const [showPicker, setShowPicker]   = useState(null)
 
     function handleShare(msg, index) {
         const question = messages[index - 1]?.text || ""
@@ -468,79 +722,230 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
         setTimeout(() => setCopied(prev => ({ ...prev, [msg.id]: false })), 2000)
     }
 
+    async function handleTranslate(msg, language) {
+        setShowPicker(null)
+
+        // If switching back to original, just set tab
+        if (language === "Original" || language === "English") {
+            // Check if original language was English — if so "English" IS original
+            setActiveTab(prev => ({ ...prev, [msg.id]: language === "Original" ? "original" : language }))
+            // If English translation already cached or it IS original, handle accordingly
+            if (language === "Original") return
+        }
+
+        // Already cached — just switch tab
+        if (translationCache[msg.id]?.[language]) {
+            setActiveTab(prev => ({ ...prev, [msg.id]: language }))
+            return
+        }
+
+        // Kick off translation
+        setTranslating(prev => ({ ...prev, [msg.id]: true }))
+        setTranslateError(prev => ({ ...prev, [msg.id]: null }))
+        setActiveTab(prev => ({ ...prev, [msg.id]: language }))
+
+        try {
+            const translated = await translateMessage(msg.text, language)
+            setCache(prev => ({
+                ...prev,
+                [msg.id]: { ...(prev[msg.id] || {}), [language]: translated }
+            }))
+        } catch(e) {
+            console.error("Translation error:", e)
+            setTranslateError(prev => ({ ...prev, [msg.id]: "Translation failed. Please try again." }))
+            setActiveTab(prev => ({ ...prev, [msg.id]: "original" }))
+        } finally {
+            setTranslating(prev => ({ ...prev, [msg.id]: false }))
+        }
+    }
+
+    function getDisplayText(msg) {
+        const tab = activeTab[msg.id]
+        if (!tab || tab === "original") return msg.text
+        return translationCache[msg.id]?.[tab] ?? msg.text
+    }
+
+    function getCurrentTab(msgId) {
+        return activeTab[msgId] || "original"
+    }
+
+    const actionBtnStyle = (active) => ({
+        background: "transparent",
+        border: `1px solid ${active ? GOLD : BORDER}`,
+        borderRadius: 6,
+        color: active ? GOLD : MUTED,
+        fontSize: 11,
+        padding: "4px 10px",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        transition: "border-color 0.15s, color 0.15s",
+    })
+
+    const mobileActionBtnStyle = (active) => ({
+        background: "transparent",
+        border: `1px solid ${active ? GOLD : BORDER}`,
+        borderRadius: 6,
+        color: active ? GOLD : "#9a9590",
+        fontSize: 13,
+        fontWeight: 500,
+        padding: "6px 16px",
+        cursor: "pointer",
+        fontFamily: "inherit",
+    })
+
     return (
         <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "20px 16px 200px" : "32px 40px 180px" }}>
+            <style>{`
+                @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+            `}</style>
             <div style={{ maxWidth: 720, margin: "0 auto" }}>
-                {messages.map((msg, index) => (
-                    <div key={msg.id}
-                        ref={index === messages.length - 1 ? latestMsgRef : null}
-                        style={{ padding: "20px 0", borderBottom: `1px solid ${BORDER}` }}>
-                        <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", marginBottom: 10, gap: isMobile ? 8 : 0 }}>
-                            <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: msg.role === "user" ? GOLD : MUTED }}>
-                                {msg.role === "user" ? "You" : msg.role === "loading" ? "Archive" : "Jabril AI"}
+                {messages.map((msg, index) => {
+                    const tab        = getCurrentTab(msg.id)
+                    const isOriginal = tab === "original"
+                    const isLoading  = translating[msg.id]
+                    const hasTranslation = tab !== "original" && translationCache[msg.id]?.[tab]
+                    const displayText = getDisplayText(msg)
+                    const error = translateError[msg.id]
+
+                    return (
+                        <div key={msg.id}
+                            ref={index === messages.length - 1 ? latestMsgRef : null}
+                            style={{ padding: "20px 0", borderBottom: `1px solid ${BORDER}` }}>
+
+                            {/* ── Header row ── */}
+                            <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", marginBottom: 10, gap: isMobile ? 8 : 0 }}>
+                                <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: msg.role === "user" ? GOLD : MUTED }}>
+                                    {msg.role === "user" ? "You" : msg.role === "loading" ? "Archive" : "Jabril AI"}
+                                </div>
+
+                                {/* Desktop action buttons */}
+                                {msg.role === "ai" && !isMobile && (
+                                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                        <button
+                                            onClick={() => handleShare(msg, index)}
+                                            style={actionBtnStyle(copied[msg.id])}
+                                            onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
+                                            onMouseLeave={e => { e.currentTarget.style.borderColor = copied[msg.id] ? GOLD : BORDER; e.currentTarget.style.color = copied[msg.id] ? GOLD : MUTED }}
+                                        >
+                                            {copied[msg.id] ? "✓ Copied" : "Share"}
+                                        </button>
+                                        <button
+                                            onClick={() => printConversation(messages.slice(0, index + 1))}
+                                            style={actionBtnStyle(false)}
+                                            onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
+                                            onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED }}
+                                        >
+                                            Print
+                                        </button>
+                                        {/* Translate button + picker */}
+                                        <div style={{ position: "relative" }}>
+                                            <button
+                                                onClick={() => setShowPicker(showPicker === msg.id ? null : msg.id)}
+                                                disabled={isLoading}
+                                                style={{ ...actionBtnStyle(showPicker === msg.id), opacity: isLoading ? 0.6 : 1 }}
+                                                onMouseEnter={e => { if (!isLoading) { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD } }}
+                                                onMouseLeave={e => { e.currentTarget.style.borderColor = showPicker === msg.id ? GOLD : BORDER; e.currentTarget.style.color = showPicker === msg.id ? GOLD : MUTED }}
+                                            >
+                                                {isLoading ? (
+                                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                                                        <span style={{ display: "inline-block", width: 10, height: 10, border: `1.5px solid ${GOLD}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                                                        Translating…
+                                                    </span>
+                                                ) : "Translate"}
+                                            </button>
+                                            {showPicker === msg.id && (
+                                                <LanguagePicker
+                                                    onSelect={(lang) => handleTranslate(msg, lang)}
+                                                    onClose={() => setShowPicker(null)}
+                                                    isMobile={false}
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            {msg.role === "ai" && !isMobile && (
-                                <div style={{ display: "flex", gap: 8 }}>
+
+                            {/* ── Original | Translation tab toggle ── */}
+                            {msg.role === "ai" && (isLoading || hasTranslation) && (
+                                <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: `1px solid ${BORDER}`, paddingBottom: 12 }}>
                                     <button
-                                        onClick={() => handleShare(msg, index)}
-                                        style={{ background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 6, color: copied[msg.id] ? GOLD : MUTED, fontSize: 11, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" }}
-                                        onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
-                                        onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = copied[msg.id] ? GOLD : MUTED }}
+                                        onClick={() => setActiveTab(prev => ({ ...prev, [msg.id]: "original" }))}
+                                        style={{
+                                            background: isOriginal ? `${GOLD}18` : "transparent",
+                                            border: `1px solid ${isOriginal ? GOLD : BORDER}`,
+                                            borderRadius: 6, color: isOriginal ? GOLD : MUTED,
+                                            fontSize: 11, padding: "4px 12px", cursor: "pointer",
+                                            fontFamily: "inherit", transition: "all 0.15s",
+                                        }}
                                     >
-                                        {copied[msg.id] ? "✓ Copied" : "Share"}
+                                        Original
                                     </button>
                                     <button
-                                        onClick={() => printConversation(messages.slice(0, index + 1))}
-                                        style={{ background: "transparent", border: `1px solid ${BORDER}`, borderRadius: 6, color: MUTED, fontSize: 11, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" }}
-                                        onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
-                                        onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED }}
+                                        onClick={() => { if (!isLoading) setActiveTab(prev => ({ ...prev, [msg.id]: tab === "original" ? Object.keys(translationCache[msg.id] || {})[0] : tab })) }}
+                                        style={{
+                                            background: !isOriginal ? `${GOLD}18` : "transparent",
+                                            border: `1px solid ${!isOriginal ? GOLD : BORDER}`,
+                                            borderRadius: 6, color: !isOriginal ? GOLD : MUTED,
+                                            fontSize: 11, padding: "4px 12px", cursor: isLoading ? "default" : "pointer",
+                                            fontFamily: "inherit", transition: "all 0.15s",
+                                            opacity: isLoading && isOriginal ? 0.5 : 1,
+                                            display: "flex", alignItems: "center", gap: 5,
+                                        }}
                                     >
-                                        Print
+                                        {isLoading && (
+                                            <span style={{ display: "inline-block", width: 9, height: 9, border: `1.5px solid ${GOLD}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                                        )}
+                                        {tab !== "original" ? tab : (Object.keys(translationCache[msg.id] || {})[0] ?? "Translation")}
                                     </button>
                                 </div>
                             )}
+
+                            {/* ── Error state ── */}
+                            {error && (
+                                <p style={{ color: "#e74c3c", fontSize: 12, marginBottom: 10, padding: "6px 10px", background: "#e74c3c12", borderRadius: 6, border: "1px solid #e74c3c30" }}>
+                                    {error}
+                                </p>
+                            )}
+
+                            {/* ── Message content ── */}
+                            <MessageText text={displayText} role={msg.role} />
+
+                            {/* ── Mobile action buttons ── */}
+                            {msg.role === "ai" && isMobile && (
+                                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16, marginBottom: 8, flexWrap: "wrap" }}>
+                                    <button
+                                        onClick={() => handleShare(msg, index)}
+                                        style={mobileActionBtnStyle(copied[msg.id])}
+                                    >
+                                        {copied[msg.id] ? "✓ Shared" : "Share"}
+                                    </button>
+                                    {/* Mobile Translate button + picker */}
+                                    <div style={{ position: "relative" }}>
+                                        <button
+                                            onClick={() => setShowPicker(showPicker === msg.id ? null : msg.id)}
+                                            disabled={isLoading}
+                                            style={{ ...mobileActionBtnStyle(showPicker === msg.id), opacity: isLoading ? 0.6 : 1 }}
+                                        >
+                                            {isLoading ? (
+                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                                                    <span style={{ display: "inline-block", width: 11, height: 11, border: `1.5px solid ${GOLD}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                                                    Translating…
+                                                </span>
+                                            ) : "Translate"}
+                                        </button>
+                                        {showPicker === msg.id && (
+                                            <LanguagePicker
+                                                onSelect={(lang) => handleTranslate(msg, lang)}
+                                                onClose={() => setShowPicker(null)}
+                                                isMobile={true}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                        <div style={{ fontSize: 17, lineHeight: 1.9, color: msg.role === "loading" ? GOLD : TEXT, fontFamily: "inherit", opacity: msg.role === "loading" ? 0.85 : 1 }}>
-                            {msg.text.split("\n").map((line, i) => {
-                                if (line.trim() === "") return null
-                                const isHeader = msg.role === "ai" &&
-                                    !line.trim().startsWith("*") &&
-                                    !line.trim().startsWith("•") &&
-                                    !line.trim().startsWith("-") &&
-                                    line.trim().length < 60 &&
-                                    !line.trim().endsWith(".") &&
-                                    !line.trim().endsWith(",")
-                                return (
-                                    <p key={i} style={{
-                                        marginBottom: isHeader ? 8 : line.startsWith("•") ? 10 : 6,
-                                        marginTop: isHeader ? 16 : 0,
-                                        paddingLeft: line.startsWith("•") ? 12 : 0,
-                                        fontSize: isHeader ? 19 : 17,
-                                        fontWeight: isHeader ? 600 : "inherit",
-                                        color: isHeader ? GOLD : "inherit",
-                                    }}>
-                                        {line}
-                                    </p>
-                                )
-                            })}
-                        </div>
-                        {msg.role === "ai" && isMobile && (
-                            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16, marginBottom: 8 }}>
-                                <button
-                                    onClick={() => handleShare(msg, index)}
-                                    style={{
-                                        background: "transparent", border: `1px solid ${BORDER}`,
-                                        borderRadius: 6, color: copied[msg.id] ? GOLD : "#9a9590",
-                                        fontSize: 13, fontWeight: 500, padding: "6px 16px",
-                                        cursor: "pointer", fontFamily: "inherit",
-                                    }}
-                                >
-                                    {copied[msg.id] ? "✓ Shared" : "Share"}
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                ))}
+                    )
+                })}
                 <div ref={messagesEndRef} />
             </div>
         </div>
