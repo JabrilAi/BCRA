@@ -149,6 +149,18 @@ function shareMessage(question, answer) {
     }
 }
 
+// Keep only the first occurrence of each unique BCRA citation in a response.
+// The AI often repeats the same citation tag multiple times; this strips extras.
+function deduplicateCitations(text) {
+    const seen = new Set()
+    return text.replace(/\[BCRA\s*•[^\]]+\]/g, (match) => {
+        const key = match.trim()
+        if (seen.has(key)) return ""
+        seen.add(key)
+        return match
+    }).replace(/[ \t]{2,}/g, " ").trim()
+}
+
 function escapeHTML(value = "") {
     return String(value)
         .replace(/&/g, "&amp;")
@@ -1743,6 +1755,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                 clean = p.output || p.text || (Array.isArray(p) ? (p[0].output || p[0].text) : raw)
             } catch(e) {}
             clean = cleanMarkdown(clean)
+            clean = deduplicateCitations(clean)
 
             const aiMsg = { id: `a-${Date.now()}`, role: "ai", text: clean }
             setMessages(prev => [...prev.filter(m => m.role !== "loading"), aiMsg])
