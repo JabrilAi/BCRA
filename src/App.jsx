@@ -511,6 +511,22 @@ function segmentText(text) {
     return parts
 }
 
+// Keep BCRA citations readable after translation. Some models preserve the
+// citation text but accidentally remove the spaces/newlines around it.
+function normalizeCitationSpacing(text) {
+    return String(text || "")
+        // word.[BCRA • Source] -> word. [BCRA • Source]
+        .replace(/([^\s(\[])(\[BCRA\s*•[^\]]+\])/g, "$1 $2")
+        // [BCRA • One][BCRA • Two] -> [BCRA • One] [BCRA • Two]
+        .replace(/(\[BCRA\s*•[^\]]+\])(\[BCRA\s*•[^\]]+\])/g, "$1 $2")
+        // [BCRA • Source]Next heading/text -> [BCRA • Source] + blank line + Next heading/text
+        .replace(/(\[BCRA\s*•[^\]]+\])([^\s\]\).,;:!?])/g, "$1\n\n$2")
+        // Clean up excessive spaces before citations but keep a single readable gap.
+        .replace(/[ \t]{2,}(\[BCRA\s*•[^\]]+\])/g, " $1")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim()
+}
+
 // Translate a single text block through our secure Vercel API route.
 // IMPORTANT: Never call OpenAI directly from the browser or expose an API key here.
 async function translateBlock(text, targetLanguage) {
@@ -534,39 +550,11 @@ async function translateBlock(text, targetLanguage) {
     return data?.translation?.trim() || text
 }
 
-// Translate full message text, protecting BCRA citations
+// Translate full message text. The secure API route preserves BCRA citations,
+// and normalizeCitationSpacing fixes model spacing issues around citations.
 async function translateMessage(originalText, targetLanguage) {
-    const segments = segmentText(originalText)
-    const textSegments = segments.filter(s => s.type === "text")
-
-    // Batch all text segments into one API call for efficiency
-    const combined = textSegments.map((s, i) => `<<<SEGMENT_${i}>>>\n${s.value}`).join("\n\n")
-    let translatedCombined = combined
-    if (combined.trim()) {
-        translatedCombined = await translateBlock(combined, targetLanguage)
-    }
-
-    // Re-extract translated segments
-    const translatedSegments = {}
-    textSegments.forEach((_, i) => {
-        const marker = `<<<SEGMENT_${i}>>>`
-        const nextMarker = `<<<SEGMENT_${i + 1}>>>`
-        const start = translatedCombined.indexOf(marker)
-        if (start === -1) { translatedSegments[i] = textSegments[i].value; return }
-        const contentStart = start + marker.length
-        const end = translatedCombined.indexOf(nextMarker, contentStart)
-        translatedSegments[i] = (end === -1
-            ? translatedCombined.slice(contentStart)
-            : translatedCombined.slice(contentStart, end)
-        ).trim()
-    })
-
-    // Reassemble with protected citations intact
-    let textIdx = 0
-    return segments.map(s => {
-        if (s.type === "citation") return s.value
-        return translatedSegments[textIdx++] ?? s.value
-    }).join("")
+    const translated = await translateBlock(originalText, targetLanguage)
+    return normalizeCitationSpacing(translated)
 }
 
 // ─── Language Picker Dropdown ─────────────────────────────────────────────────
@@ -673,9 +661,46 @@ function LanguagePicker({ onSelect, onClose, isMobile }) {
 
 // ─── Rendered Message Text ─────────────────────────────────────────────────────
 function MessageText({ text, role }) {
+    function renderLineWithCitations(line) {
+        const parts = []
+        let last = 0
+        let match
+        BCRA_PATTERN.lastIndex = 0
+
+        while ((match = BCRA_PATTERN.exec(line)) !== null) {
+            if (match.index > last) {
+                parts.push({ type: "text", value: line.slice(last, match.index) })
+            }
+            parts.push({ type: "citation", value: match[0] })
+            last = match.index + match[0].length
+        }
+
+        if (last < line.length) {
+            parts.push({ type: "text", value: line.slice(last) })
+        }
+
+        if (parts.length === 0) return line
+
+        return parts.map((part, idx) => {
+            if (part.type !== "citation") return <span key={idx}>{part.value}</span>
+            return (
+                <span
+                    key={idx}
+                    style={{
+                        color: GOLD,
+                        fontWeight: 600,
+                        whiteSpace: "normal",
+                    }}
+                >
+                    {part.value}
+                </span>
+            )
+        })
+    }
+
     return (
         <div style={{ fontSize: 17, lineHeight: 1.9, color: role === "loading" ? GOLD : TEXT, fontFamily: "inherit", opacity: role === "loading" ? 0.85 : 1 }}>
-            {text.split("\n").map((line, i) => {
+            {normalizeCitationSpacing(text).split("\n").map((line, i) => {
                 if (line.trim() === "") return null
                 const isHeader = role === "ai" &&
                     !line.trim().startsWith("*") &&
@@ -693,7 +718,7 @@ function MessageText({ text, role }) {
                         fontWeight: isHeader ? 600 : "inherit",
                         color: isHeader ? GOLD : "inherit",
                     }}>
-                        {line}
+                        {renderLineWithCitations(line)}
                     </p>
                 )
             })}
