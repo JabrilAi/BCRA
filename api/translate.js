@@ -5,6 +5,16 @@ function isValidLanguage(value) {
   return typeof value === "string" && value.trim().length > 0 && value.length <= 80
 }
 
+function normalizeCitationSpacing(text) {
+  return String(text || "")
+    .replace(/([^\s(\[])(\[BCRA\s*•[^\]]+\])/g, "$1 $2")
+    .replace(/(\[BCRA\s*•[^\]]+\])(\[BCRA\s*•[^\]]+\])/g, "$1 $2")
+    .replace(/(\[BCRA\s*•[^\]]+\])([^\s\]\).,;:!?])/g, "$1\n\n$2")
+    .replace(/[ \t]{2,}(\[BCRA\s*•[^\]]+\])/g, " $1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST")
@@ -40,6 +50,7 @@ export default async function handler(req, res) {
           "You are assisting Jabril AI with post-response language rendering.",
           "Render the supplied response in a Medu Neter / Ancient Egyptian-oriented format where reasonably possible.",
           "Preserve all Markdown-style structure, headings, bullets, paragraph breaks, and line breaks.",
+          "Preserve the spacing before and after every citation. Citations must never be merged into surrounding words.",
           "Do not invent archive claims or new citations.",
           "Do not translate, alter, remove, or reformat any bracketed citation such as [BCRA • Document Title].",
           "Preserve Unicode hieroglyphs, transliterations, pronunciations, and meanings where present.",
@@ -48,6 +59,7 @@ export default async function handler(req, res) {
       : [
           `You are a professional translator. Translate the supplied response into ${targetLanguage}.`,
           "Preserve all Markdown-style structure, headings, bullets, paragraph breaks, and line breaks.",
+          "Preserve the spacing before and after every citation. Citations must never be merged into surrounding words.",
           "Do not summarize, reinterpret, add claims, remove claims, or add outside knowledge.",
           "Do not translate, alter, remove, or reformat any bracketed citation such as [BCRA • Document Title].",
           "Return only the translated response text with no preamble.",
@@ -77,7 +89,7 @@ export default async function handler(req, res) {
       })
     }
 
-    let translation = data?.choices?.[0]?.message?.content?.trim() || text
+    let translation = normalizeCitationSpacing(data?.choices?.[0]?.message?.content || text)
 
     // Safety check: if the model accidentally drops an exact BCRA citation,
     // append any missing citations so source references are never lost.
