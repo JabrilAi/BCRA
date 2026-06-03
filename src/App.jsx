@@ -8,6 +8,14 @@ const supabase = createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2d3R1dHZqZHNra21memZjZnp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ2NzA5NDcsImV4cCI6MjA3MDI0Njk0N30.Ods_WduSQhHY0YU-v9TNY_HjZGA6FSCVkNFvl539z_w"            // ← and this
 )
 
+// Capture the Android/Chrome install prompt as early as possible at module load
+// so it's available no matter when the user clicks Install
+let _installPrompt = null
+window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault()
+    _installPrompt = e
+})
+
 const FREE_LIMIT = 10
 const STORAGE_KEY = "jabrilai_questions_used"
 const REGISTERED_KEY = "jabrilai_has_registered"
@@ -281,52 +289,68 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
 
 function InstallBanner({ triggerShow = false, onDismiss }) {
     const [show, setShow] = useState(false)
-    const [isIOS, setIsIOS] = useState(false)
     const [showIOSInstructions, setShowIOSInstructions] = useState(false)
-    // Use a ref so the install prompt is always current inside event handlers
-    const promptRef = useRef(null)
+    const isIOS = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase())
+    const isAndroid = /android/i.test(navigator.userAgent)
 
-    useEffect(() => {
-        // Don't show if already installed as PWA
-        if (window.matchMedia("(display-mode: standalone)").matches) return
-        const ios = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase())
-        setIsIOS(ios)
-        // Capture the Chrome/Android install prompt into a ref
-        const handler = (e) => {
-            e.preventDefault()
-            promptRef.current = e
-        }
-        window.addEventListener("beforeinstallprompt", handler)
-        return () => window.removeEventListener("beforeinstallprompt", handler)
-    }, [])
-
-    // Show the banner when parent signals it's time (right after sign-in)
+    // Show when parent triggers (after sign-in or Install App button)
     useEffect(() => {
         if (!triggerShow) return
         if (window.matchMedia("(display-mode: standalone)").matches) return
-        const ios = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase())
-        if (window.innerWidth <= 768 || ios) setShow(true)
+        setShow(true)
     }, [triggerShow])
 
     if (!show) return null
 
     async function install() {
-        if (promptRef.current) {
-            // Android / Chrome — trigger the native install dialog
+        if (_installPrompt) {
+            // Android/Chrome — fire the native "Add to Home Screen" dialog
             try {
-                await promptRef.current.prompt()
-                const result = await promptRef.current.userChoice
-                if (result.outcome === "accepted") setShow(false)
-                else setShowIOSInstructions(false) // dismissed, leave banner
+                _installPrompt.prompt()
+                const result = await _installPrompt.userChoice
+                _installPrompt = null // can only be used once
+                if (result.outcome === "accepted") {
+                    setShow(false)
+                    onDismiss && onDismiss()
+                }
+                // if dismissed, leave banner so they can try again
             } catch(e) {
-                // prompt() can only be called once; fall through to manual instructions
+                // Already used — show Android manual instructions
                 setShowIOSInstructions(true)
             }
         } else {
-            // iOS Safari (no beforeinstallprompt) or prompt already used — show manual steps
+            // iOS Safari or Android Chrome that missed the prompt — show manual steps
             setShowIOSInstructions(true)
         }
     }
+
+    const androidSteps = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+            <p style={{ color: TEXT, fontSize: 13, lineHeight: 1.6 }}>
+                <span style={{ color: GOLD, fontWeight: 700 }}>1.</span> Tap the <strong>⋮ menu</strong> (three dots) in the top-right of Chrome
+            </p>
+            <p style={{ color: TEXT, fontSize: 13, lineHeight: 1.6 }}>
+                <span style={{ color: GOLD, fontWeight: 700 }}>2.</span> Tap <strong>"Add to Home screen"</strong>
+            </p>
+            <p style={{ color: TEXT, fontSize: 13, lineHeight: 1.6 }}>
+                <span style={{ color: GOLD, fontWeight: 700 }}>3.</span> Tap <strong>Add</strong> to confirm
+            </p>
+        </div>
+    )
+
+    const iosSteps = (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+            <p style={{ color: TEXT, fontSize: 13, lineHeight: 1.6 }}>
+                <span style={{ color: GOLD, fontWeight: 700 }}>1.</span> Tap the <strong>Share</strong> button (box with arrow) at the bottom of Safari
+            </p>
+            <p style={{ color: TEXT, fontSize: 13, lineHeight: 1.6 }}>
+                <span style={{ color: GOLD, fontWeight: 700 }}>2.</span> Scroll down and tap <strong>"Add to Home Screen"</strong>
+            </p>
+            <p style={{ color: TEXT, fontSize: 13, lineHeight: 1.6 }}>
+                <span style={{ color: GOLD, fontWeight: 700 }}>3.</span> Tap <strong>Add</strong> in the top-right corner
+            </p>
+        </div>
+    )
 
     return (
         <>
@@ -372,7 +396,7 @@ function InstallBanner({ triggerShow = false, onDismiss }) {
                 </div>
             </div>
 
-            {/* iOS step-by-step install instructions */}
+            {/* Manual install instructions — Android or iOS */}
             {showIOSInstructions && (
                 <div style={{
                     position: "fixed", bottom: 200, left: 16, right: 16,
@@ -383,19 +407,9 @@ function InstallBanner({ triggerShow = false, onDismiss }) {
                     <p style={{ color: GOLD, fontSize: 14, fontWeight: 700, marginBottom: 14, letterSpacing: "0.04em" }}>
                         Add to Home Screen
                     </p>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-                        <p style={{ color: TEXT, fontSize: 13, lineHeight: 1.6 }}>
-                            <span style={{ color: GOLD, fontWeight: 700 }}>1.</span> Tap the <strong>Share</strong> button (the box with an arrow) at the bottom of Safari
-                        </p>
-                        <p style={{ color: TEXT, fontSize: 13, lineHeight: 1.6 }}>
-                            <span style={{ color: GOLD, fontWeight: 700 }}>2.</span> Scroll down and tap <strong>"Add to Home Screen"</strong>
-                        </p>
-                        <p style={{ color: TEXT, fontSize: 13, lineHeight: 1.6 }}>
-                            <span style={{ color: GOLD, fontWeight: 700 }}>3.</span> Tap <strong>Add</strong> in the top-right corner
-                        </p>
-                    </div>
+                    {isAndroid ? androidSteps : iosSteps}
                     <button
-                        onClick={() => { setShowIOSInstructions(false); setShow(false) }}
+                        onClick={() => { setShowIOSInstructions(false); setShow(false); onDismiss && onDismiss() }}
                         style={{
                             width: "100%", background: GOLD, border: "none",
                             borderRadius: 10, color: "#0f0f0f",
@@ -1174,6 +1188,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
     const [booting, setBooting]             = useState(!!user)  // only true for logged-in users waiting on DB
     const [showGate, setShowGate]           = useState(false)
     const [triggerInstall, setTriggerInstall] = useState(false)
+    const [isInstalled, setIsInstalled]     = useState(() => window.matchMedia("(display-mode: standalone)").matches)
     const messagesEndRef                    = useRef(null)
     const latestMsgRef                      = useRef(null)
 
@@ -1181,6 +1196,13 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
     useEffect(() => {
         if (showInstall) setTriggerInstall(true)
     }, [showInstall])
+
+    // Hide Install button once the app is installed
+    useEffect(() => {
+        const handler = () => setIsInstalled(true)
+        window.addEventListener("appinstalled", handler)
+        return () => window.removeEventListener("appinstalled", handler)
+    }, [])
 
     // If logged in, load sessions + quota from Supabase
     useEffect(() => {
@@ -1330,7 +1352,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
     }
 
     return (
-        <div style={{ display: "flex", width: "100vw", height: "100vh", background: BG, color: TEXT, fontFamily: "'DM Sans', sans-serif", overflow: "hidden" }}>
+        <div style={{ display: "flex", width: "100vw", height: "100vh", background: BG, color: TEXT, fontFamily: "'DM Sans', sans-serif", overflow: "hidden", position: "relative" }}>
             {/* Signup gate overlay */}
             {showGate && (
                 <SignupGate
@@ -1360,42 +1382,38 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
             )}
 
             <main style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
-                {/* Mobile header for logged-in users — sign out + install */}
+                {/* Mobile top-right controls for logged-in users — no header, just floating buttons */}
                 {isMobile && user && (
                     <div style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "10px 16px", borderBottom: `1px solid ${BORDER}`,
-                        background: PANEL, flexShrink: 0,
+                        position: "absolute", top: 12, right: 14,
+                        display: "flex", gap: 8, zIndex: 50,
                     }}>
-                        <img src={logo} alt="Jabril AI" style={{ width: 52, height: "auto" }} />
-                        <div style={{ display: "flex", gap: 8 }}>
-                            {!isPWA() && (
-                                <button
-                                    onClick={() => setTriggerInstall(true)}
-                                    style={{
-                                        background: "transparent", border: `1px solid ${GOLD}`,
-                                        borderRadius: 6, color: GOLD, fontFamily: "inherit",
-                                        fontSize: 12, fontWeight: 600, padding: "6px 12px",
-                                        cursor: "pointer", whiteSpace: "nowrap",
-                                    }}
-                                >
-                                    📲 Install App
-                                </button>
-                            )}
+                        {!isPWA() && !isInstalled && (
                             <button
-                                onClick={onSignOut}
+                                onClick={() => setTriggerInstall(true)}
                                 style={{
-                                    background: "transparent", border: `1px solid ${BORDER}`,
-                                    borderRadius: 6, color: MUTED, fontFamily: "inherit",
-                                    fontSize: 12, padding: "6px 12px", cursor: "pointer",
-                                    whiteSpace: "nowrap",
+                                    background: "transparent", border: `1px solid ${GOLD}`,
+                                    borderRadius: 6, color: GOLD, fontFamily: "inherit",
+                                    fontSize: 12, fontWeight: 600, padding: "6px 12px",
+                                    cursor: "pointer", whiteSpace: "nowrap",
                                 }}
-                                onMouseEnter={e => { e.currentTarget.style.borderColor = "#c0392b"; e.currentTarget.style.color = "#c0392b" }}
-                                onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED }}
                             >
-                                Sign Out
+                                📲 Install
                             </button>
-                        </div>
+                        )}
+                        <button
+                            onClick={onSignOut}
+                            style={{
+                                background: "transparent", border: `1px solid ${BORDER}`,
+                                borderRadius: 6, color: MUTED, fontFamily: "inherit",
+                                fontSize: 12, padding: "6px 12px", cursor: "pointer",
+                                whiteSpace: "nowrap",
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = "#c0392b"; e.currentTarget.style.color = "#c0392b" }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED }}
+                        >
+                            Sign Out
+                        </button>
                     </div>
                 )}
                 <QuotaBar used={questionsUsed} isLoggedIn={!!user} isMobile={isMobile} onRegisterClick={() => setShowGate(true)} />
