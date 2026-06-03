@@ -279,31 +279,31 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
     )
 }
 
-function InstallBanner() {
+function InstallBanner({ triggerShow = false }) {
     const [show, setShow] = useState(false)
     const [prompt, setPrompt] = useState(null)
     const [isIOS, setIsIOS] = useState(false)
     const [showIOSInstructions, setShowIOSInstructions] = useState(false)
 
     useEffect(() => {
-        // Only show on mobile
-        if (window.innerWidth > 768) return
-        // Don't show if already installed
+        // Don't show if already installed as PWA
         if (window.matchMedia("(display-mode: standalone)").matches) return
-
         const ios = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase())
         setIsIOS(ios)
-
-        // Listen for Chrome/Android install prompt
+        // Capture the install prompt but don't show yet — wait for triggerShow
         window.addEventListener("beforeinstallprompt", (e) => {
             e.preventDefault()
             setPrompt(e)
-            setShow(true)
         })
-
-        // Show on iOS too (no beforeinstallprompt on Safari)
-        if (ios) setShow(true)
     }, [])
+
+    // Show the banner when parent signals it's time (right after sign-in)
+    useEffect(() => {
+        if (!triggerShow) return
+        if (window.matchMedia("(display-mode: standalone)").matches) return
+        const ios = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase())
+        if (window.innerWidth <= 768 || ios) setShow(true)
+    }, [triggerShow])
 
     if (!show) return null
 
@@ -811,6 +811,7 @@ function SignupGate({ onAuth, onGuest, isMobile, forcePWA = false, headline, sub
     const [error, setError]       = useState("")
     const [showPass, setShowPass] = useState(false)
     const [success, setSuccess]   = useState("")
+    const [emailSent, setEmailSent] = useState("")
 
     async function submit() {
         setError(""); setSuccess(""); setLoading(true)
@@ -821,13 +822,15 @@ function SignupGate({ onAuth, onGuest, isMobile, forcePWA = false, headline, sub
                     options: { data: { full_name: name } },
                 })
                 if (e) throw e
-                if (data.user && !data.session) {
-                    setSuccess("Check your email to confirm your account, then sign in.")
-                    setTab("login")
-                } else if (data.user) {
-                    localStorage.setItem(REGISTERED_KEY, "1")
-                    onAuth(data.user)
-                }
+                // Always show confirmation prompt after signup — switch to Sign In tab
+                // and display a prominent banner regardless of session state
+                const signedUpEmail = email
+                setTab("login")
+                setEmail(signedUpEmail)
+                setPass("")
+                setEmailSent(signedUpEmail)
+                setLoading(false)
+                return
             } else {
                 const { data, error: e } = await supabase.auth.signInWithPassword({ email, password })
                 if (e) throw e
@@ -903,7 +906,31 @@ function SignupGate({ onAuth, onGuest, isMobile, forcePWA = false, headline, sub
                     </div>
                 )}
 
-                {error   && <p style={{ color: "#e74c3c", background: "#e74c3c18", border: "1px solid #e74c3c30", borderRadius: 6, padding: "9px 12px", fontSize: 13, marginBottom: 14 }}>{error}</p>}
+                {emailSent && (
+                    <div style={{
+                        background: "linear-gradient(135deg, #1a2e1a, #162616)",
+                        border: "1px solid #27ae60",
+                        borderRadius: 10,
+                        padding: "18px 16px",
+                        marginBottom: 20,
+                        textAlign: "center",
+                    }}>
+                        <div style={{ fontSize: 28, marginBottom: 8 }}>📧</div>
+                        <p style={{ color: "#2ecc71", fontSize: 15, fontWeight: 600, marginBottom: 6 }}>
+                            Check your email!
+                        </p>
+                        <p style={{ color: "#a8d5a8", fontSize: 13, lineHeight: 1.6, marginBottom: 4 }}>
+                            We sent a confirmation link to
+                        </p>
+                        <p style={{ color: "#2ecc71", fontSize: 13, fontWeight: 600, marginBottom: 8, wordBreak: "break-all" }}>
+                            {emailSent}
+                        </p>
+                        <p style={{ color: "#7aaa7a", fontSize: 12, lineHeight: 1.6 }}>
+                            Click the link in that email first, then come back here and sign in below.
+                        </p>
+                    </div>
+                )}
+                {error && <p style={{ color: "#e74c3c", background: "#e74c3c18", border: "1px solid #e74c3c30", borderRadius: 6, padding: "9px 12px", fontSize: 13, marginBottom: 14 }}>{error}</p>}
                 {success && <p style={{ color: "#27ae60", background: "#27ae6018", border: "1px solid #27ae6030", borderRadius: 6, padding: "9px 12px", fontSize: 13, marginBottom: 14 }}>{success}</p>}
 
                 {tab === "signup" && (
@@ -1127,7 +1154,7 @@ function AuthScreen({ onAuth }) {
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
-function MainApp({ user, onSignOut, onAuthNeeded }) {
+function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
     const [view, setView]                   = useState("welcome")
     const [messages, setMessages]           = useState([])
     const [history, setHistory]             = useState([])
@@ -1302,8 +1329,8 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
                         : undefined}
                 />
             )}
-            {/* Mobile install banner */}
-            <InstallBanner />
+            {/* Mobile install banner — shown after sign-in */}
+            <InstallBanner triggerShow={showInstall} />
 
             {/* Sidebar only for logged-in users */}
             {!isMobile && user && (
@@ -1342,6 +1369,7 @@ function MainApp({ user, onSignOut, onAuthNeeded }) {
 export default function App() {
     const [user, setUser]           = useState(undefined)
     const [guestAllowed, setGuest]  = useState(false)
+    const [showInstall, setShowInstall] = useState(false)
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data }) => {
@@ -1364,6 +1392,8 @@ export default function App() {
         localStorage.setItem(REGISTERED_KEY, "1")
         setUser(u)
         setGuest(false)
+        // Show install prompt right after sign-in on mobile
+        setTimeout(() => setShowInstall(true), 800)
     }
 
     // Still checking session
@@ -1382,6 +1412,7 @@ export default function App() {
                 user={user}
                 onSignOut={handleSignOut}
                 onAuthNeeded={setUser}
+                showInstall={showInstall}
             />
         )
     }
@@ -1428,6 +1459,7 @@ export default function App() {
             user={null}
             onSignOut={handleSignOut}
             onAuthNeeded={setUser}
+            showInstall={showInstall}
         />
     )
 }
