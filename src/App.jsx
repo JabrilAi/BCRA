@@ -688,8 +688,13 @@ function MessageText({ text, role }) {
                     key={idx}
                     style={{
                         color: GOLD,
-                        fontWeight: 600,
+                        fontWeight: 500,
+                        fontSize: "0.85em",
+                        opacity: 0.9,
                         whiteSpace: "normal",
+                        letterSpacing: "0.01em",
+                        display: "block",
+                        marginTop: "4px",
                     }}
                 >
                     {part.value}
