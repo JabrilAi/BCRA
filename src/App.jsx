@@ -279,7 +279,7 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
     )
 }
 
-function InstallBanner({ triggerShow = false }) {
+function InstallBanner({ triggerShow = false, onDismiss }) {
     const [show, setShow] = useState(false)
     const [isIOS, setIsIOS] = useState(false)
     const [showIOSInstructions, setShowIOSInstructions] = useState(false)
@@ -360,7 +360,7 @@ function InstallBanner({ triggerShow = false }) {
                         Install
                     </button>
                     <button
-                        onClick={() => setShow(false)}
+                        onClick={() => { setShow(false); onDismiss && onDismiss() }}
                         style={{
                             background: "none", border: "none",
                             color: MUTED, fontFamily: "inherit",
@@ -1173,8 +1173,14 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
     const [questionsUsed, setQuestionsUsed] = useState(() => user ? 0 : getAnonCount())
     const [booting, setBooting]             = useState(!!user)  // only true for logged-in users waiting on DB
     const [showGate, setShowGate]           = useState(false)
+    const [triggerInstall, setTriggerInstall] = useState(false)
     const messagesEndRef                    = useRef(null)
     const latestMsgRef                      = useRef(null)
+
+    // Mirror the parent showInstall prop into local triggerInstall
+    useEffect(() => {
+        if (showInstall) setTriggerInstall(true)
+    }, [showInstall])
 
     // If logged in, load sessions + quota from Supabase
     useEffect(() => {
@@ -1338,8 +1344,8 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                         : undefined}
                 />
             )}
-            {/* Mobile install banner — shown after sign-in */}
-            <InstallBanner triggerShow={showInstall} />
+            {/* Mobile install banner — shown after sign-in or when tapped from header */}
+            <InstallBanner triggerShow={triggerInstall} onDismiss={() => setTriggerInstall(false)} />
 
             {/* Sidebar only for logged-in users */}
             {!isMobile && user && (
@@ -1354,6 +1360,44 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
             )}
 
             <main style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
+                {/* Mobile header for logged-in users — sign out + install */}
+                {isMobile && user && (
+                    <div style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "10px 16px", borderBottom: `1px solid ${BORDER}`,
+                        background: PANEL, flexShrink: 0,
+                    }}>
+                        <img src={logo} alt="Jabril AI" style={{ width: 52, height: "auto" }} />
+                        <div style={{ display: "flex", gap: 8 }}>
+                            {!isPWA() && (
+                                <button
+                                    onClick={() => setTriggerInstall(true)}
+                                    style={{
+                                        background: "transparent", border: `1px solid ${GOLD}`,
+                                        borderRadius: 6, color: GOLD, fontFamily: "inherit",
+                                        fontSize: 12, fontWeight: 600, padding: "6px 12px",
+                                        cursor: "pointer", whiteSpace: "nowrap",
+                                    }}
+                                >
+                                    📲 Install App
+                                </button>
+                            )}
+                            <button
+                                onClick={onSignOut}
+                                style={{
+                                    background: "transparent", border: `1px solid ${BORDER}`,
+                                    borderRadius: 6, color: MUTED, fontFamily: "inherit",
+                                    fontSize: 12, padding: "6px 12px", cursor: "pointer",
+                                    whiteSpace: "nowrap",
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = "#c0392b"; e.currentTarget.style.color = "#c0392b" }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED }}
+                            >
+                                Sign Out
+                            </button>
+                        </div>
+                    </div>
+                )}
                 <QuotaBar used={questionsUsed} isLoggedIn={!!user} isMobile={isMobile} onRegisterClick={() => setShowGate(true)} />
                 {view === "welcome"
                     ? <WelcomeScreen onChipClick={send} isMobile={isMobile} />
