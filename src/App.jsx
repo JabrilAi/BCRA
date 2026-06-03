@@ -149,9 +149,25 @@ function shareMessage(question, answer) {
     }
 }
 
-// Keep only the first occurrence of each unique BCRA citation in a response.
-// The AI often repeats the same citation tag multiple times; this strips extras.
+// Single source → strip all inline occurrences and append once at the end.
+// Multiple sources → deduplicate but leave each in place (they render on their
+// own line via the display:block span style).
 function deduplicateCitations(text) {
+    const allMatches = [...text.matchAll(/\[BCRA\s*•[^\]]+\]/g)]
+    const unique = [...new Set(allMatches.map(m => m[0].trim()))]
+
+    if (unique.length === 0) return text
+
+    if (unique.length === 1) {
+        // One source — remove every inline occurrence, append once at the end
+        const stripped = text.replace(/\[BCRA\s*•[^\]]+\]/g, "")
+            .replace(/[ \t]{2,}/g, " ")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim()
+        return stripped + "\n\n" + unique[0]
+    }
+
+    // Multiple sources — just deduplicate repeated tags, leave positions alone
     const seen = new Set()
     return text.replace(/\[BCRA\s*•[^\]]+\]/g, (match) => {
         const key = match.trim()
