@@ -153,28 +153,44 @@ function shareMessage(question, answer) {
 // Multiple sources → deduplicate but leave each in place (they render on their
 // own line via the display:block span style).
 function deduplicateCitations(text) {
-    const allMatches = [...text.matchAll(/\[BCRA\s*•[^\]]+\]/g)]
+    // v7 backend appends a "Sources Used:" summary block whose tags intentionally
+    // repeat the inline ones. Split it off first so dedup never blanks it.
+    const splitMatch = String(text || "").match(/\n*Sources Used:[\s\S]*$/i)
+    let body = text
+    let sourcesBlock = ""
+    if (splitMatch) {
+        body = text.slice(0, splitMatch.index)
+        sourcesBlock = splitMatch[0].trim()
+    }
+
+    const allMatches = [...body.matchAll(/\[BCRA\s*•[^\]]+\]/g)]
     const unique = [...new Set(allMatches.map(m => m[0].trim()))]
 
-    if (unique.length === 0) return text
+    if (unique.length === 0) {
+        return sourcesBlock ? (body.trim() + "\n\n" + sourcesBlock) : text
+    }
 
+    let newBody
     if (unique.length === 1) {
-        // One source — remove every inline occurrence, append once at the end
-        const stripped = text.replace(/\[BCRA\s*•[^\]]+\]/g, "")
+        // One source — remove every inline occurrence; the Sources Used block
+        // (or a single appended tag if there is no block) shows it once.
+        newBody = body.replace(/\[BCRA\s*•[^\]]+\]/g, "")
             .replace(/[ \t]{2,}/g, " ")
             .replace(/\n{3,}/g, "\n\n")
             .trim()
-        return stripped + "\n\n" + unique[0]
+        if (!sourcesBlock) newBody += "\n\n" + unique[0]
+    } else {
+        // Multiple sources — deduplicate repeated tags within the body only
+        const seen = new Set()
+        newBody = body.replace(/\[BCRA\s*•[^\]]+\]/g, (match) => {
+            const key = match.trim()
+            if (seen.has(key)) return ""
+            seen.add(key)
+            return match
+        }).replace(/[ \t]{2,}/g, " ").trim()
     }
 
-    // Multiple sources — just deduplicate repeated tags, leave positions alone
-    const seen = new Set()
-    return text.replace(/\[BCRA\s*•[^\]]+\]/g, (match) => {
-        const key = match.trim()
-        if (seen.has(key)) return ""
-        seen.add(key)
-        return match
-    }).replace(/[ \t]{2,}/g, " ").trim()
+    return sourcesBlock ? (newBody + "\n\n" + sourcesBlock) : newBody
 }
 
 function escapeHTML(value = "") {
