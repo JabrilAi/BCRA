@@ -1026,7 +1026,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
     )
 }
 
-function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasSidebar }) {
+function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasSidebar, inputRef }) {
     const [listening, setListening]   = useState(false)
     const [voiceError, setVoiceError] = useState("")
     const recognitionRef              = useRef(null)
@@ -1165,6 +1165,7 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
             }}>
                 <div style={{ width: "100%", maxWidth: 700, display: "flex", gap: 10, alignItems: "center" }}>
                     <input
+                        ref={inputRef}
                         value={value}
                         onChange={onChange}
                         onKeyDown={onKeyDown}
@@ -1670,6 +1671,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
     const [isInstalled, setIsInstalled]     = useState(() => window.matchMedia("(display-mode: standalone)").matches)
     const messagesEndRef                    = useRef(null)
     const latestMsgRef                      = useRef(null)
+    const inputRef                          = useRef(null)
 
     // Mirror the parent showInstall prop into local triggerInstall
     useEffect(() => {
@@ -1811,7 +1813,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         }
 
         setLoading(false)
-    }
+        setTimeout(() => inputRef.current?.focus(), 50)
 
     function handleAuth(newUser) {
         // Clear anon question counter so logged-in users never see the quota bar again
@@ -1911,6 +1913,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                 disabled={loading}
                 isMobile={isMobile}
                 hasSidebar={!isMobile && !!user}
+                inputRef={inputRef}
             />
         </div>
     )
