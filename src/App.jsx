@@ -1814,6 +1814,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
 
         setLoading(false)
         setTimeout(() => inputRef.current?.focus(), 50)
+    }
 
     function handleAuth(newUser) {
         // Clear anon question counter so logged-in users never see the quota bar again
