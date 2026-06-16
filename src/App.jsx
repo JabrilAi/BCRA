@@ -1041,7 +1041,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile }) {
     )
 }
 
-function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasSidebar, inputRef }) {
+function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasSidebar, inputRef, webMode, onToggleMode }) {
     const [listening, setListening]   = useState(false)
     const [voiceError, setVoiceError] = useState("")
     const recognitionRef              = useRef(null)
@@ -1179,6 +1179,33 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
                 paddingRight: isMobile ? 16 : 40,
             }}>
                 <div style={{ width: "100%", maxWidth: 700, display: "flex", gap: 10, alignItems: "center" }}>
+                    {/* Web / Archive toggle */}
+                    <button
+                        onClick={onToggleMode}
+                        disabled={disabled}
+                        title={webMode ? "Switch to Archive" : "Switch to Web Search"}
+                        style={{
+                            background: webMode ? GOLD : "transparent",
+                            border: `1.5px solid ${GOLD}`,
+                            borderRadius: 12,
+                            color: webMode ? "#0f0f0f" : GOLD,
+                            fontFamily: "inherit",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            padding: "14px 14px",
+                            cursor: disabled ? "not-allowed" : "pointer",
+                            opacity: disabled ? 0.5 : 1,
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
+                            letterSpacing: "0.05em",
+                            textTransform: "uppercase",
+                            transition: "all 0.2s",
+                        }}
+                        onMouseEnter={e => { if (!disabled) e.currentTarget.style.opacity = "0.8" }}
+                        onMouseLeave={e => { e.currentTarget.style.opacity = "1" }}
+                    >
+                        {webMode ? "Archive" : "Web"}
+                    </button>
                     <input
                         ref={inputRef}
                         value={value}
@@ -1687,6 +1714,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
     const messagesEndRef                    = useRef(null)
     const latestMsgRef                      = useRef(null)
     const inputRef                          = useRef(null)
+    const [webMode, setWebMode]             = useState(false)
 
     // Mirror the parent showInstall prop into local triggerInstall
     useEffect(() => {
@@ -1785,16 +1813,18 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         }
 
         const userMsg    = { id: `u-${Date.now()}`, role: "user",    text: query }
-        const loadingMsg = { id: `l-${Date.now()}`, role: "loading", text: "Consulting the Archive..." }
+        const loadingMsg = { id: `l-${Date.now()}`, role: "loading", text: webMode ? "Searching the web..." : "Consulting the Archive..." }
         setMessages(prev => [...prev, userMsg, loadingMsg])
 
         if (user) await dbSaveMessage(sessionId, user.id, "user", query)
 
+        // Inject khemet: prefix for web mode so n8n routes to Dev Mode Agent
+        const webhookQuery = webMode ? `khemet: ${query}` : query
+
         try {
             const res = await fetch(WEBHOOK_URL, {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                // Pass the real sessionId so n8n can track conversation history per user
-                body: JSON.stringify({ query, sessionId: sessionId ?? "anon" }),
+                body: JSON.stringify({ query: webhookQuery, sessionId: sessionId ?? "anon" }),
             })
             if (!res.ok) throw new Error()
             const raw = await res.text()
@@ -1930,6 +1960,8 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                 isMobile={isMobile}
                 hasSidebar={!isMobile && !!user}
                 inputRef={inputRef}
+                webMode={webMode}
+                onToggleMode={() => setWebMode(m => !m)}
             />
         </div>
     )
