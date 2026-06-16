@@ -709,13 +709,22 @@ function MessageText({ text, role }) {
         const parts = []
         let last = 0
         let match
-        BCRA_PATTERN.lastIndex = 0
 
-        while ((match = BCRA_PATTERN.exec(line)) !== null) {
+        // Combined pattern: markdown links [text](url) OR BCRA citations
+        const COMBINED = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)|\[BCRA\s*•[^\]]+\]/g
+        COMBINED.lastIndex = 0
+
+        while ((match = COMBINED.exec(line)) !== null) {
             if (match.index > last) {
                 parts.push({ type: "text", value: line.slice(last, match.index) })
             }
-            parts.push({ type: "citation", value: match[0] })
+            if (match[1] && match[2]) {
+                // Markdown link [text](url)
+                parts.push({ type: "link", label: match[1], url: match[2] })
+            } else {
+                // BCRA citation
+                parts.push({ type: "citation", value: match[0] })
+            }
             last = match.index + match[0].length
         }
 
@@ -726,8 +735,13 @@ function MessageText({ text, role }) {
         if (parts.length === 0) return line
 
         return parts.map((part, idx) => {
-            if (part.type !== "citation") return <span key={idx}>{part.value}</span>
-            return (
+            if (part.type === "link") return (
+                <a key={idx} href={part.url} target="_blank" rel="noopener noreferrer"
+                    style={{ color: GOLD, textDecoration: "underline", cursor: "pointer" }}>
+                    {part.label}
+                </a>
+            )
+            if (part.type === "citation") return (
                 <span
                     key={idx}
                     style={{
@@ -744,6 +758,7 @@ function MessageText({ text, role }) {
                     {part.value}
                 </span>
             )
+            return <span key={idx}>{part.value}</span>
         })
     }
 
