@@ -1828,8 +1828,8 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
 
         if (user) await dbSaveMessage(sessionId, user.id, "user", query)
 
-        // Inject khemet: prefix for web mode so n8n routes to Dev Mode Agent
-        const webhookQuery = webMode ? `khemet: ${query}` : query
+        // Inject web: prefix for web mode so n8n routes to Dev Mode Agent
+        const webhookQuery = webMode ? `web: ${query}` : query
 
         try {
             const res = await fetch(WEBHOOK_URL, {
