@@ -136,7 +136,16 @@ function cleanMarkdown(text) {
     return text
         .replace(/###\s*/g, "").replace(/##\s*/g, "").replace(/#\s*/g, "")
         .replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1")
-        .replace(/^\s*[-•]\s*/gm, "\n• ").replace(/\n{3,}/g, "\n\n").trim()
+        .replace(/^\s*[-•]\s*/gm, "\n• ").replace(/\n{3,}/g, "\n\n")
+        // Strip LaTeX math notation
+        .replace(/\\\(|\\\)/g, "")
+        .replace(/\\\[|\\\]/g, "")
+        .replace(/\\times/g, "×")
+        .replace(/\\cdot/g, "·")
+        .replace(/\\div/g, "÷")
+        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "$1/$2")
+        .replace(/\\sqrt\{([^}]+)\}/g, "√$1")
+        .trim()
 }
 
 function shareMessage(question, answer) {
@@ -1190,9 +1199,9 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
                             borderRadius: 12,
                             color: webMode ? "#0f0f0f" : GOLD,
                             fontFamily: "inherit",
-                            fontSize: 12,
+                            fontSize: isMobile ? 11 : 12,
                             fontWeight: 600,
-                            padding: "14px 14px",
+                            padding: isMobile ? "14px 10px" : "14px 14px",
                             cursor: disabled ? "not-allowed" : "pointer",
                             opacity: disabled ? 0.5 : 1,
                             whiteSpace: "nowrap",
@@ -1200,11 +1209,12 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
                             letterSpacing: "0.05em",
                             textTransform: "uppercase",
                             transition: "all 0.2s",
+                            minWidth: isMobile ? 52 : 64,
                         }}
                         onMouseEnter={e => { if (!disabled) e.currentTarget.style.opacity = "0.8" }}
                         onMouseLeave={e => { e.currentTarget.style.opacity = "1" }}
                     >
-                        {webMode ? "Archive" : "Web"}
+                        {webMode ? (isMobile ? "ARC" : "Archive") : "Web"}
                     </button>
                     <input
                         ref={inputRef}
