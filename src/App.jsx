@@ -277,13 +277,48 @@ function RotatingQuestion({ onAsk }) {
     )
 }
 
-function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
+function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut, isMobile = false, isOpen = true, onClose }) {
+    if (isMobile && !isOpen) return null
     return (
-        <aside style={{
-            width: 220, minWidth: 220, background: PANEL,
-            borderRight: `1px solid ${BORDER}`, display: "flex",
-            flexDirection: "column", height: "100vh", overflowY: "hidden", flexShrink: 0,
-        }}>
+        <>
+            <style>{`
+                @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+                @keyframes slideIn { from { transform: translateX(-100%) } to { transform: translateX(0) } }
+            `}</style>
+            {isMobile && (
+                <div
+                    onClick={onClose}
+                    style={{
+                        position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+                        zIndex: 90, animation: "fadeIn 0.15s ease",
+                    }}
+                />
+            )}
+            <aside style={isMobile ? {
+                position: "fixed", top: 0, left: 0, height: "100vh", width: "78vw", maxWidth: 300,
+                minWidth: 0, background: PANEL, borderRight: `1px solid ${BORDER}`,
+                display: "flex", flexDirection: "column", overflowY: "hidden",
+                zIndex: 91, boxShadow: "8px 0 24px rgba(0,0,0,0.4)",
+                animation: "slideIn 0.18s ease",
+            } : {
+                width: 220, minWidth: 220, background: PANEL,
+                borderRight: `1px solid ${BORDER}`, display: "flex",
+                flexDirection: "column", height: "100vh", overflowY: "hidden", flexShrink: 0,
+            }}>
+                {isMobile && (
+                    <button
+                        onClick={onClose}
+                        aria-label="Close menu"
+                        style={{
+                            position: "absolute", top: 14, right: 14, background: "transparent",
+                            border: `1px solid ${BORDER}`, borderRadius: 6, color: MUTED,
+                            fontSize: 16, width: 30, height: 30, cursor: "pointer", lineHeight: 1,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                        }}
+                    >
+                        ✕
+                    </button>
+                )}
             <div style={{ padding: "24px 20px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "center" }}>
                 <img src={logo} alt="Jabril AI" onClick={onNewChat} style={{ width: 80, height: "auto", cursor: "pointer" }} />
             </div>
@@ -310,7 +345,7 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
                 {/* Divider */}
                 <div style={{ borderTop: `1px solid ${BORDER}` }} />
                 {/* New Research button */}
-                <button onClick={onNewChat} style={{
+                <button onClick={() => { onNewChat(); if (isMobile && onClose) onClose() }} style={{
                     width: "100%", background: "transparent",
                     border: `1px solid ${BORDER}`, borderRadius: 8,
                     color: TEXT, fontFamily: "inherit", fontSize: 13,
@@ -334,7 +369,7 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
                     </p>
                 )}
                 {history.map(item => (
-                    <button key={item.id} onClick={() => onSelect(item.id)} style={{
+                    <button key={item.id} onClick={() => { onSelect(item.id); if (isMobile && onClose) onClose() }} style={{
                         width: "100%", background: item.id === activeId ? "rgba(201,168,76,0.08)" : "transparent",
                         border: "none", borderRadius: 6, padding: "8px 10px",
                         cursor: "pointer", textAlign: "left", display: "block",
@@ -349,6 +384,7 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut }) {
             </div>
 
         </aside>
+        </>
     )
 }
 
@@ -1808,6 +1844,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
     const [activeId, setActiveId]           = useState(null)
     const [prompt, setPrompt]               = useState("")
     const [loading, setLoading]             = useState(false)
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const [questionsUsed, setQuestionsUsed] = useState(() => user ? 0 : getAnonCount())
     const [booting, setBooting]             = useState(!!user)  // only true for logged-in users waiting on DB
     const [showGate, setShowGate]           = useState(false)
@@ -2009,8 +2046,8 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
             {/* Mobile install banner — shown after sign-in or when tapped from header */}
             <InstallBanner triggerShow={triggerInstall} onDismiss={() => setTriggerInstall(false)} />
 
-            {/* Sidebar only for logged-in users */}
-            {!isMobile && user && (
+            {/* Sidebar — fixed panel on desktop, slide-in overlay drawer on mobile */}
+            {(!isMobile && user) && (
                 <Sidebar
                     history={history}
                     activeId={activeId}
@@ -2018,6 +2055,19 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                     onNewChat={newChat}
                     user={user}
                     onSignOut={onSignOut}
+                />
+            )}
+            {isMobile && user && (
+                <Sidebar
+                    history={history}
+                    activeId={activeId}
+                    onSelect={loadSession}
+                    onNewChat={newChat}
+                    user={user}
+                    onSignOut={onSignOut}
+                    isMobile={true}
+                    isOpen={mobileMenuOpen}
+                    onClose={() => setMobileMenuOpen(false)}
                 />
             )}
 
@@ -2042,17 +2092,19 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                             </button>
                         )}
                         <button
-                            onClick={onSignOut}
+                            onClick={() => setMobileMenuOpen(true)}
+                            aria-label="Open menu"
                             style={{
                                 background: "transparent", border: `1px solid ${BORDER}`,
                                 borderRadius: 6, color: MUTED, fontFamily: "inherit",
-                                fontSize: 12, padding: "6px 12px", cursor: "pointer",
-                                whiteSpace: "nowrap",
+                                fontSize: 16, width: 34, height: 30, padding: 0, cursor: "pointer",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                lineHeight: 1,
                             }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = "#c0392b"; e.currentTarget.style.color = "#c0392b" }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
                             onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED }}
                         >
-                            Sign Out
+                            ☰
                         </button>
                     </div>
                 )}
@@ -2177,6 +2229,5 @@ export default function App() {
         />
     )
 }
-
 
 
