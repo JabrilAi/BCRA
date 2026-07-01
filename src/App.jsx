@@ -344,7 +344,7 @@ function RotatingQuestion({ onAsk }) {
 
     return (
         <div style={{ textAlign: "center", marginTop: 8 }}>
-            <p style={{ color: MUTED, fontSize: 15, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 }}>
+            <p style={{ color: "#7a756c", fontSize: 15, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 }}>
                 Try asking
             </p>
             <button
@@ -362,7 +362,7 @@ function RotatingQuestion({ onAsk }) {
             >
                 "{EXAMPLE_QUESTIONS[index]}"
             </button>
-            <p style={{ color: MUTED, fontSize: 14, marginTop: 10 }}>or type your own question below</p>
+            <p style={{ color: "#7a756c", fontSize: 15, marginTop: 10 }}>or type your own question below</p>
         </div>
     )
 }
