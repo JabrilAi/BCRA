@@ -213,7 +213,7 @@ const EXAMPLE_QUESTIONS = [
     "What foods support melanin and skin health?",
     "What are healthy boundaries in a relationship?",
     "How did the Black Panthers address community health?",
-    "Can you share a recipe for Nigerian pepper soup?",
+    "Who are the Original people of the planet and why does it matter?",
     "How can I raise confident Black children?",
     "What did soul food mean to enslaved Black Americans?",
     "What can Black men learn from African rites of passage?",
