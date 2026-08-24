@@ -1101,7 +1101,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, load
                             {/* ── Header row ── */}
                             <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", marginBottom: 10, gap: isMobile ? 8 : 0 }}>
                                 <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: msg.role === "user" ? GOLD : MUTED }}>
-                                    {msg.role === "user" ? "You" : msg.role === "loading" ? "Archive" : "Jabril AI"}
+                                    {msg.role === "user" ? "You" : "Jabril AI"}
                                 </div>
 
                                 {/* Desktop action buttons */}
@@ -1268,20 +1268,19 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, load
     )
 }
 
-function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasSidebar, inputRef, webMode, onSelectArchive, onSelectWeb, curatorMode, onSelectCurator }) {
+function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasSidebar, inputRef, webMode, onSelectWeb, curatorMode, onSelectCurator }) {
     const [listening, setListening]   = useState(false)
     const [voiceError, setVoiceError] = useState("")
     const recognitionRef              = useRef(null)
     const silenceTimerRef             = useRef(null)
     const ml = hasSidebar ? 220 : 0
-    const modeLabel = curatorMode ? (isMobile ? "CUR" : "Curator") : webMode ? "Web" : (isMobile ? "ARC" : "Archive")
-    const modeTitle = curatorMode ? "Curator mode: archive-backed conversation" : webMode ? "Web mode" : "Archive mode"
+    const modeLabel = webMode ? "WEB" : "JABRIL"
+    const modeTitle = webMode ? "Web mode" : "Jabril mode: archive-backed Curator"
 
     function cycleMobileMode() {
         if (disabled) return
-        if (!webMode && !curatorMode) onSelectWeb()
-        else if (webMode) onSelectCurator()
-        else onSelectArchive()
+        if (webMode) onSelectCurator()
+        else onSelectWeb()
     }
 
     const supported = typeof window !== "undefined" &&
@@ -1444,16 +1443,16 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
                         </button>
                     ) : (
                         <>
-                            {/* Archive mode */}
+                            {/* Jabril mode — uses the existing Curator path in n8n */}
                             <button
-                                onClick={onSelectArchive}
+                                onClick={onSelectCurator}
                                 disabled={disabled}
-                                title="Search the BCRA Archive"
+                                title="Ask Jabril using archive-backed Curator intelligence"
                                 style={{
-                                    background: (!webMode && !curatorMode) ? GOLD : "transparent",
+                                    background: curatorMode && !webMode ? GOLD : "transparent",
                                     border: `1.5px solid ${GOLD}`,
                                     borderRadius: 12,
-                                    color: (!webMode && !curatorMode) ? "#0f0f0f" : GOLD,
+                                    color: curatorMode && !webMode ? "#0f0f0f" : GOLD,
                                     fontFamily: "inherit",
                                     fontSize: 12,
                                     fontWeight: 600,
@@ -1466,11 +1465,12 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
                                     textTransform: "uppercase",
                                     transition: "all 0.2s",
                                     minWidth: 74,
+                                    boxShadow: curatorMode && !webMode ? `0 0 12px ${GOLD}55` : "none",
                                 }}
                                 onMouseEnter={e => { if (!disabled) e.currentTarget.style.opacity = "0.8" }}
                                 onMouseLeave={e => { e.currentTarget.style.opacity = "1" }}
                             >
-                                Archive
+                                Jabril
                             </button>
                             {/* Web mode */}
                             <button
@@ -1500,35 +1500,6 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
                             >
                                 Web
                             </button>
-                            {/* Curator Mode */}
-                            <button
-                                onClick={onSelectCurator}
-                                disabled={disabled}
-                                title="Talk to The Curator with archive-backed research"
-                                style={{
-                                    background: curatorMode ? GOLD : "transparent",
-                                    border: `1.5px solid ${GOLD}`,
-                                    borderRadius: 12,
-                                    color: curatorMode ? "#0f0f0f" : GOLD,
-                                    fontFamily: "inherit",
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    padding: "14px 14px",
-                                    cursor: disabled ? "not-allowed" : "pointer",
-                                    opacity: disabled ? 0.5 : 1,
-                                    whiteSpace: "nowrap",
-                                    flexShrink: 0,
-                                    letterSpacing: "0.05em",
-                                    textTransform: "uppercase",
-                                    transition: "all 0.2s",
-                                    minWidth: 74,
-                                    boxShadow: curatorMode ? `0 0 12px ${GOLD}55` : "none",
-                                }}
-                                onMouseEnter={e => { if (!disabled) e.currentTarget.style.opacity = "0.8" }}
-                                onMouseLeave={e => { e.currentTarget.style.opacity = "1" }}
-                            >
-                                {curatorMode ? "Curator ✦" : "Curator"}
-                            </button>
                         </>
                     )}
                     <input
@@ -1536,7 +1507,7 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
                         value={value}
                         onChange={onChange}
                         onKeyDown={onKeyDown}
-                        placeholder={listening ? "Listening..." : curatorMode ? "Ask The Curator..." : "Ask Jabril..."}
+                        placeholder={listening ? "Listening..." : webMode ? "Search the Web..." : "Ask Jabril..."}
                         disabled={disabled}
                         style={{
                             flex: 1, minWidth: 0, background: PANEL,
@@ -2229,7 +2200,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
     const latestMsgRef                      = useRef(null)
     const inputRef                          = useRef(null)
     const [webMode, setWebMode]             = useState(false)
-    const [curatorMode, setCuratorMode]     = useState(false)
+    const [curatorMode, setCuratorMode]     = useState(true)
 
     // Mirror the parent showInstall prop into local triggerInstall
     useEffect(() => {
@@ -2355,7 +2326,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         }
 
         const userMsg    = { id: `u-${Date.now()}`, role: "user",    text: query }
-        const loadingMsg = { id: `l-${Date.now()}`, role: "loading", text: curatorMode ? "The Curator is thinking..." : webMode ? "Searching the web..." : "Consulting the Archive..." }
+        const loadingMsg = { id: `l-${Date.now()}`, role: "loading", text: webMode ? "Searching the web..." : "Jabril is thinking..." }
         setMessages(prev => [...prev, userMsg, loadingMsg])
 
         if (user) await dbSaveMessage(sessionId, user.id, "user", query)
@@ -2555,7 +2526,6 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                 hasSidebar={!isMobile && !!user}
                 inputRef={inputRef}
                 webMode={webMode}
-                onSelectArchive={() => { setWebMode(false); setCuratorMode(false) }}
                 onSelectWeb={() => { setWebMode(true); setCuratorMode(false) }}
                 curatorMode={curatorMode}
                 onSelectCurator={() => { setCuratorMode(true); setWebMode(false) }}
