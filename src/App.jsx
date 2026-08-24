@@ -212,8 +212,9 @@ function shareMessage(question, answer) {
 // Multiple sources → deduplicate but leave each in place (they render on their
 // own line via the display:block span style).
 function deduplicateCitations(text) {
-    // v7 backend appends a "Sources Used:" summary block whose tags intentionally
-    // repeat the inline ones. Split it off first so dedup never blanks it.
+    // Treat a BCRA citation plus an optional "— Author" suffix as one source-credit unit.
+    // This preserves author display metadata while keeping the exact [BCRA • Source Name]
+    // citation tag unchanged for source fidelity.
     const splitMatch = String(text || "").match(/\n*Sources Used:[\s\S]*$/i)
     let body = text
     let sourcesBlock = ""
@@ -222,34 +223,75 @@ function deduplicateCitations(text) {
         sourcesBlock = splitMatch[0].trim()
     }
 
-    const allMatches = [...body.matchAll(/\[BCRA\s*•[^\]]+\]/g)]
-    const unique = [...new Set(allMatches.map(m => m[0].trim()))]
+    const TAG_PATTERN = /\[BCRA\s*•[^\]]+\]/g
+    const CREDIT_PATTERN = /\[BCRA\s*•[^\]]+\](?:[ \t]*—[ \t]*[^\n]+)?/g
 
-    if (unique.length === 0) {
+    function getTag(credit) {
+        const match = String(credit || "").match(/\[BCRA\s*•[^\]]+\]/)
+        return match ? match[0].trim() : ""
+    }
+
+    function hasAuthor(credit) {
+        return /\]\s*—\s*\S/.test(String(credit || ""))
+    }
+
+    // Prefer the richest version of each source credit (citation + author when available).
+    const creditByTag = new Map()
+    const allCredits = [
+        ...[...body.matchAll(CREDIT_PATTERN)].map(m => m[0].trim()),
+        ...[...sourcesBlock.matchAll(CREDIT_PATTERN)].map(m => m[0].trim()),
+    ]
+
+    for (const credit of allCredits) {
+        const tag = getTag(credit)
+        if (!tag) continue
+        const existing = creditByTag.get(tag)
+        if (!existing || (!hasAuthor(existing) && hasAuthor(credit))) {
+            creditByTag.set(tag, credit)
+        }
+    }
+
+    const uniqueTags = [...creditByTag.keys()]
+
+    if (uniqueTags.length === 0) {
         return sourcesBlock ? (body.trim() + "\n\n" + sourcesBlock) : text
     }
 
+    function enrichSourcesBlock(block) {
+        if (!block) return ""
+        return block.replace(CREDIT_PATTERN, (credit) => {
+            const tag = getTag(credit)
+            return creditByTag.get(tag) || credit
+        })
+    }
+
     let newBody
-    if (unique.length === 1) {
-        // One source — remove every inline occurrence; the Sources Used block
-        // (or a single appended tag if there is no block) shows it once.
-        newBody = body.replace(/\[BCRA\s*•[^\]]+\]/g, "")
+
+    if (uniqueTags.length === 1) {
+        // One source — remove inline repeats and show one complete source credit at the end
+        // (or enrich the existing Sources Used block with the author suffix).
+        newBody = body.replace(CREDIT_PATTERN, "")
             .replace(/[ \t]{2,}/g, " ")
             .replace(/\n{3,}/g, "\n\n")
             .trim()
-        if (!sourcesBlock) newBody += "\n\n" + unique[0]
+
+        if (!sourcesBlock) {
+            newBody += "\n\n" + creditByTag.get(uniqueTags[0])
+        }
     } else {
-        // Multiple sources — deduplicate repeated tags within the body only
+        // Multiple sources — deduplicate by exact citation tag while preserving the author suffix.
         const seen = new Set()
-        newBody = body.replace(/\[BCRA\s*•[^\]]+\]/g, (match) => {
-            const key = match.trim()
-            if (seen.has(key)) return ""
-            seen.add(key)
-            return match
+        newBody = body.replace(CREDIT_PATTERN, (credit) => {
+            const tag = getTag(credit)
+            if (!tag) return credit
+            if (seen.has(tag)) return ""
+            seen.add(tag)
+            return creditByTag.get(tag) || credit
         }).replace(/[ \t]{2,}/g, " ").trim()
     }
 
-    return sourcesBlock ? (newBody + "\n\n" + sourcesBlock) : newBody
+    const enrichedSources = enrichSourcesBlock(sourcesBlock)
+    return enrichedSources ? (newBody + "\n\n" + enrichedSources) : newBody
 }
 
 function escapeHTML(value = "") {
@@ -733,7 +775,7 @@ const MORE_LANGUAGES = [
 ].filter(l => !FAVORITE_LANGUAGES.includes(l))
 
 // BCRA citation pattern — these must NEVER be translated
-const BCRA_PATTERN = /(\[BCRA\s*•[^\]]+\])/g
+const BCRA_PATTERN = /(\[BCRA\s*•[^\]]+\](?:[ \t]*—[ \t]*[^\n]+)?)/g
 
 // Split text into translatable segments and protected citations
 function segmentText(text) {
@@ -906,7 +948,7 @@ function MessageText({ text, role }) {
         let match
 
         // Combined pattern: markdown links [text](url) OR BCRA citations
-        const COMBINED = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)|\[BCRA\s*•[^\]]+\]/g
+        const COMBINED = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)|\[BCRA\s*•[^\]]+\](?:[ \t]*—[ \t]*[^\n]+)?/g
         COMBINED.lastIndex = 0
 
         while ((match = COMBINED.exec(line)) !== null) {
