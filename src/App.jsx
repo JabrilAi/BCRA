@@ -948,7 +948,7 @@ function MessageText({ text, role }) {
         let match
 
         // Combined pattern: markdown links [text](url) OR BCRA citations
-        const COMBINED = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)|\[BCRA\s*•[^\]]+\](?:[ \t]*—[ \t]*[^\n]+)?/g
+        const COMBINED = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)|\[BCRA\s*•[^\]]+\]/g
         COMBINED.lastIndex = 0
 
         while ((match = COMBINED.exec(line)) !== null) {
@@ -2378,21 +2378,30 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         // curator instructions for the archive agent to use after retrieval.
         const webhookQuery = webMode ? `web: ${query}` : query
 
+        // Pass the signed-in user's existing signup display name to n8n.
+        // Anonymous users and accounts without a saved full_name send no name.
+        const userName = user
+            ? String(user.user_metadata?.full_name || "").trim().slice(0, 120)
+            : ""
+        const identityFields = userName ? { userName } : {}
+
         // Build webhook body — curator mode passes flag + prompt for n8n to use
         const webhookBody = curatorMode
-            ? { query, sessionId: sessionId ?? "anon", curator: true }
-            : { query: webhookQuery, sessionId: sessionId ?? "anon" }
+            ? { query, sessionId: sessionId ?? "anon", curator: true, ...identityFields }
+            : { query: webhookQuery, sessionId: sessionId ?? "anon", ...identityFields }
 
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 95000)
-
-        // Include the current Supabase access token so n8n can independently
-        // verify the logged-in user's identity. Anonymous users send no token.
+        // Resolve authentication first so auth/session lookup time does not consume
+        // the webhook response window.
         const { data: { session: authSession } } = await supabase.auth.getSession()
         const requestHeaders = { "Content-Type": "application/json" }
         if (authSession?.access_token) {
             requestHeaders.Authorization = `Bearer ${authSession.access_token}`
         }
+
+        // Give the live n8n webhook enough time to finish archive retrieval and
+        // Curator processing before the browser cancels the request.
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 180000)
 
         try {
             const res = await fetch(WEBHOOK_URL, {
@@ -2439,10 +2448,12 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
 
         } catch(e) {
             const message = e?.name === "AbortError"
-                ? "The Archive took too long to respond. Please try again with a shorter question."
+                ? "The Archive response timed out before it reached the website. Please try again."
                 : "Connection to the Archive interrupted. Please try again."
             const errMsg = { id: `e-${Date.now()}`, role: "ai", text: message }
             setMessages(prev => [...prev.filter(m => m.role !== "loading"), errMsg])
+        } finally {
+            clearTimeout(timeoutId)
         }
 
         setLoading(false)
