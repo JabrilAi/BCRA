@@ -166,6 +166,47 @@ if (typeof window !== "undefined") {
     } catch (e) { /* non-critical */ }
 }
 
+// Answers only. Errors, "empty session" and the loading placeholder also use the "ai"
+// role, but a request to contribute doesn't belong after those.
+function isAnswerMessage(msg) {
+    return msg.role === "ai" && !/^(e-|empty$|err$)/.test(String(msg.id))
+}
+
+// Shown under every Jabril answer. Lives outside the message text, so Share, Print
+// and Translate (which work from msg.text) never include it.
+function ContributeNote({ isMobile }) {
+    return (
+        <div style={{
+            marginTop: 22,
+            display: "flex",
+            flexDirection: isMobile ? "column" : "row",
+            alignItems: isMobile ? "flex-start" : "center",
+            justifyContent: "space-between",
+            gap: isMobile ? 10 : 16,
+        }}>
+            <span style={{ fontSize: 13, lineHeight: 1.6, color: "#9a9590" }}>
+                If this information helped you please consider contributing to preserve and expand the archive.
+            </span>
+            <a
+                href={CONTRIBUTE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                    display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0,
+                    background: "transparent", border: `1px solid ${GOLD}66`, borderRadius: 8,
+                    color: GOLD, fontFamily: "inherit", fontSize: 12, fontWeight: 600,
+                    padding: "7px 14px", textDecoration: "none", cursor: "pointer", whiteSpace: "nowrap",
+                    transition: "background 0.2s, border-color 0.2s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = `${GOLD}18`; e.currentTarget.style.borderColor = GOLD }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = `${GOLD}66` }}
+            >
+                <span style={{ fontSize: 14 }}>♡</span> Contribute
+            </a>
+        </div>
+    )
+}
+
 function ContributeThanks() {
     const [show, setShow] = useState(_justContributed)
     useEffect(() => {
@@ -1371,6 +1412,8 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, load
                                     )}
                                 </div>
                             )}
+
+                            {isAnswerMessage(msg) && <ContributeNote isMobile={isMobile} />}
                         </div>
                     )
                 })}
@@ -2620,17 +2663,17 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                             href={CONTRIBUTE_URL}
                             target="_blank"
                             rel="noopener noreferrer"
-                            aria-label="Contribute"
-                            title="Contribute"
+                            title="Help preserve and expand the archive"
                             style={{
                                 background: "transparent", border: `1px solid ${GOLD}`,
                                 borderRadius: 6, color: GOLD, fontFamily: "inherit",
-                                fontSize: 16, width: 34, height: 30, padding: 0, cursor: "pointer",
-                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontSize: 12, fontWeight: 600, height: 30, padding: "0 12px",
+                                cursor: "pointer", whiteSpace: "nowrap",
+                                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                                 lineHeight: 1, textDecoration: "none",
                             }}
                         >
-                            ♡
+                            <span style={{ fontSize: 14 }}>♡</span> Contribute
                         </a>
                         <button
                             onClick={() => setMobileMenuOpen(true)}
