@@ -147,6 +147,55 @@ const BORDER = "#2a2a2a"
 const TEXT   = "#e4dfd4"
 const MUTED  = "#5a5650"
 
+// ─── Contribute (Stripe Payment Link) ───────────────────────────────────────
+// TEST-MODE link for now. To go live, replace with the live Payment Link
+// (same form, but the URL has no "test_" in it) — this is the only place to change.
+const CONTRIBUTE_URL = "https://buy.stripe.com/test_fZu14m1ZRf6lbaM87kak000"
+
+// The Stripe link sends people back here with ?contributed=1. Read it once at
+// load, then strip it from the address bar so a refresh doesn't repeat the message.
+let _justContributed = false
+if (typeof window !== "undefined") {
+    try {
+        const url = new URL(window.location.href)
+        if (url.searchParams.get("contributed") === "1") {
+            _justContributed = true
+            url.searchParams.delete("contributed")
+            window.history.replaceState({}, "", url.pathname + url.search + url.hash)
+        }
+    } catch (e) { /* non-critical */ }
+}
+
+function ContributeThanks() {
+    const [show, setShow] = useState(_justContributed)
+    useEffect(() => {
+        if (!show) return
+        _justContributed = false
+        const t = setTimeout(() => setShow(false), 9000)
+        return () => clearTimeout(t)
+    }, [show])
+    if (!show) return null
+    return (
+        <div role="status" aria-live="polite" style={{
+            position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
+            zIndex: 200, maxWidth: "calc(100vw - 32px)",
+            display: "flex", alignItems: "center", gap: 12,
+            background: "#1a1a1a", border: `1px solid ${GOLD}66`, borderRadius: 10,
+            padding: "12px 16px", color: TEXT, fontSize: 14, lineHeight: 1.4,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+        }}>
+            <span>Thank you for contributing. You're helping preserve and expand the archive.</span>
+            <button
+                onClick={() => setShow(false)}
+                aria-label="Dismiss"
+                style={{ background: "transparent", border: "none", color: MUTED, cursor: "pointer", fontSize: 14, padding: 0, fontFamily: "inherit" }}
+            >
+                ✕
+            </button>
+        </div>
+    )
+}
+
 const EXAMPLE_QUESTIONS = [
     "Who were the Moors and how did they shape Europe?",
     "How do Black women navigate love and partnership?",
@@ -572,6 +621,27 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut, onDe
                         )}
                     </div>
                 ))}
+            </div>
+
+            <div style={{ padding: "10px 12px 14px", borderTop: `1px solid ${BORDER}`, flexShrink: 0 }}>
+                <a
+                    href={CONTRIBUTE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Help preserve and expand the archive"
+                    style={{
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                        width: "100%", boxSizing: "border-box",
+                        background: "transparent", border: `1px solid ${GOLD}66`, borderRadius: 8,
+                        color: GOLD, fontFamily: "inherit", fontSize: 13, fontWeight: 600,
+                        padding: "10px 12px", textDecoration: "none", cursor: "pointer",
+                        transition: "background 0.2s, border-color 0.2s",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = `${GOLD}18`; e.currentTarget.style.borderColor = GOLD }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = `${GOLD}66` }}
+                >
+                    <span style={{ fontSize: 15 }}>♡</span> Contribute
+                </a>
             </div>
 
         </aside>
@@ -2497,6 +2567,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
             <InstallBanner triggerShow={triggerInstall} onDismiss={() => setTriggerInstall(false)} />
 
             {/* Sidebar — fixed panel on desktop, slide-in overlay drawer on mobile */}
+            <ContributeThanks />
             {(!isMobile && user) && (
                 <Sidebar
                     history={history}
@@ -2545,6 +2616,22 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                                 📲 Install
                             </button>
                         )}
+                        <a
+                            href={CONTRIBUTE_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label="Contribute"
+                            title="Contribute"
+                            style={{
+                                background: "transparent", border: `1px solid ${GOLD}`,
+                                borderRadius: 6, color: GOLD, fontFamily: "inherit",
+                                fontSize: 16, width: 34, height: 30, padding: 0, cursor: "pointer",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                lineHeight: 1, textDecoration: "none",
+                            }}
+                        >
+                            ♡
+                        </a>
                         <button
                             onClick={() => setMobileMenuOpen(true)}
                             aria-label="Open menu"
