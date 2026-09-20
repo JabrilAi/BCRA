@@ -525,6 +525,26 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut, onDe
                 >
                     <span style={{ fontSize: 16 }}>+</span> New Research
                 </button>
+                {/* Contribute (Stripe Payment Link) */}
+                <a
+                    href={CONTRIBUTE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Help preserve and expand the archive"
+                    onClick={() => { if (isMobile && onClose) onClose() }}
+                    style={{
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                        width: "100%", boxSizing: "border-box",
+                        background: "transparent", border: `1px solid ${GOLD}66`, borderRadius: 8,
+                        color: GOLD, fontFamily: "inherit", fontSize: 13, fontWeight: 600,
+                        padding: "10px 12px", textDecoration: "none", cursor: "pointer",
+                        transition: "background 0.2s, border-color 0.2s",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = `${GOLD}18`; e.currentTarget.style.borderColor = GOLD }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = `${GOLD}66` }}
+                >
+                    <span style={{ fontSize: 15 }}>♡</span> Contribute
+                </a>
             </div>
             <div style={{ padding: "6px 12px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 13, color: MUTED, letterSpacing: "0.12em", textTransform: "uppercase" }}>Recent</span>
@@ -623,26 +643,6 @@ function Sidebar({ history, activeId, onSelect, onNewChat, user, onSignOut, onDe
                 ))}
             </div>
 
-            <div style={{ padding: "10px 12px 14px", borderTop: `1px solid ${BORDER}`, flexShrink: 0 }}>
-                <a
-                    href={CONTRIBUTE_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Help preserve and expand the archive"
-                    style={{
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                        width: "100%", boxSizing: "border-box",
-                        background: "transparent", border: `1px solid ${GOLD}66`, borderRadius: 8,
-                        color: GOLD, fontFamily: "inherit", fontSize: 13, fontWeight: 600,
-                        padding: "10px 12px", textDecoration: "none", cursor: "pointer",
-                        transition: "background 0.2s, border-color 0.2s",
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = `${GOLD}18`; e.currentTarget.style.borderColor = GOLD }}
-                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = `${GOLD}66` }}
-                >
-                    <span style={{ fontSize: 15 }}>♡</span> Contribute
-                </a>
-            </div>
 
         </aside>
         </>
