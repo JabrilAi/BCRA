@@ -148,9 +148,9 @@ const TEXT   = "#e4dfd4"
 const MUTED  = "#5a5650"
 
 // ─── Contribute (Stripe Payment Link) ───────────────────────────────────────
-// TEST-MODE link for now. To go live, replace with the live Payment Link
-// (same form, but the URL has no "test_" in it) — this is the only place to change.
-const CONTRIBUTE_URL = "https://buy.stripe.com/test_fZu14m1ZRf6lbaM87kak000"
+// Live Stripe Payment Link ("Customers choose what to pay", $25 preset, $3 minimum).
+// This is the only place to change the link.
+const CONTRIBUTE_URL = "https://buy.stripe.com/4gM14meLVdg9euLeA03sI00"
 
 // The Stripe link sends people back here with ?contributed=1. Read it once at
 // load, then strip it from the address bar so a refresh doesn't repeat the message.
