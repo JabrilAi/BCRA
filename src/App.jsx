@@ -1790,13 +1790,13 @@ function QuotaBar({ used, isLoggedIn, isMobile, onRegisterClick }) {
                 onMouseEnter={e => { e.currentTarget.style.background = GOLD; e.currentTarget.style.color = "#0f0f0f" }}
                 onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = GOLD }}
             >
-                Register Free →
+                Sign-up or Sign-In to access chat history
             </button>
         </div>
     )
 }
 
-// ─── Signup Gate (shown after 10 free questions, or on app open) ─────────────
+// ─── Signup Gate (shown after 10 free questions, or when requested) ─────────
 function SignupGate({ onAuth, onGuest, isMobile, forcePWA = false, headline, subtext }) {
     const hasRegistered = !!localStorage.getItem(REGISTERED_KEY)
     const [tab, setTab]           = useState(hasRegistered ? "login" : "signup")
@@ -2597,7 +2597,9 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
             {showGate && (
                 <SignupGate
                     onAuth={handleAuth}
-                    onGuest={isPWA() ? null : () => setShowGate(false)}
+                    // At the 10-question limit the gate is mandatory.
+                    // Before the limit, a guest may close it after choosing to sign up/sign in.
+                    onGuest={isPWA() || questionsUsed >= FREE_LIMIT ? null : () => setShowGate(false)}
                     isMobile={isMobile}
                     forcePWA={isPWA()}
                     headline={questionsUsed >= FREE_LIMIT ? "Continue your research" : undefined}
@@ -2720,8 +2722,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
 // ─── Root ─────────────────────────────────────────────────────────────────────
 export default function App() {
     const [user, setUser]           = useState(undefined)
-    const [guestAllowed, setGuest]  = useState(false)
-    const [showInstall, setShowInstall] = useState(false)
+        const [showInstall, setShowInstall] = useState(false)
     // True while the user is on the site via a "reset your password" email link.
     // Supabase fires a PASSWORD_RECOVERY auth event in that case — we catch it
     // here and show ResetPasswordScreen instead of the normal app/sign-in flow,
@@ -2744,14 +2745,12 @@ export default function App() {
     async function handleSignOut() {
         await supabase.auth.signOut()
         setUser(null)
-        setGuest(false)
     }
 
     function handleAuth(u) {
         localStorage.removeItem(STORAGE_KEY)
         localStorage.setItem(REGISTERED_KEY, "1")
         setUser(u)
-        setGuest(false)
         // Show install prompt right after sign-in on mobile
         setTimeout(() => setShowInstall(true), 800)
     }
@@ -2799,7 +2798,7 @@ export default function App() {
     const hasReg    = !!localStorage.getItem(REGISTERED_KEY)
 
     // PWA install — must register, no guest
-    if (pwa && !guestAllowed) {
+    if (pwa) {
         return (
             <SignupGate
                 onAuth={handleAuth}
@@ -2814,23 +2813,9 @@ export default function App() {
         )
     }
 
-    // Browser visit — show gate with guest option; guest proceeds into app anonymously
-    if (!guestAllowed) {
-        return (
-            <SignupGate
-                onAuth={handleAuth}
-                onGuest={() => setGuest(true)}
-                isMobile={isMobile}
-                forcePWA={false}
-                headline={hasReg ? "Welcome back" : "Welcome to Jabril AI"}
-                subtext={hasReg
-                    ? "Sign in to access your research history."
-                    : "Create a free account to save your history, or continue as a guest with 10 free questions."}
-            />
-        )
-    }
-
-    // Guest in browser — full anonymous app experience
+    // Browser visits land directly in the anonymous chat.
+    // Guests get the existing 10-question browser-local quota; authentication is
+    // available from the quota bar and is required once the quota is exhausted.
     return (
         <MainApp
             user={null}
