@@ -1938,7 +1938,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, load
     })
 
     return (
-        <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "20px 16px 200px" : "32px 40px 180px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "20px 16px 270px" : "32px 40px 180px" }}>
             <style>{`
                 @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
                 @keyframes jaiThinkingOrbit { to { transform: rotate(360deg) } }
@@ -2250,8 +2250,6 @@ function InputBar({
     const silenceTimerRef             = useRef(null)
     const fileInputRef                = useRef(null)
     const ml = hasSidebar ? 220 : 0
-    const modeLabel = webMode ? "WEB" : "JABRIL"
-    const modeTitle = webMode ? "Web mode" : "Jabril mode: archive-backed Curator"
 
     useEffect(() => {
         const el = inputRef.current
@@ -2261,16 +2259,10 @@ function InputBar({
         el.style.height = "auto"
 
         // Grow with the prompt, then scroll internally once it reaches the cap.
-        const maxHeight = 160
+        const maxHeight = isMobile ? 144 : 160
         el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`
         el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden"
-    }, [value, inputRef])
-
-    function cycleMobileMode() {
-        if (disabled) return
-        if (webMode) onSelectCurator()
-        else onSelectWeb()
-    }
+    }, [value, inputRef, isMobile])
 
     const supported = typeof window !== "undefined" &&
         ("SpeechRecognition" in window || "webkitSpeechRecognition" in window)
@@ -2455,34 +2447,50 @@ function InputBar({
                 paddingLeft: isMobile ? 16 : 40,
                 paddingRight: isMobile ? 16 : 40,
             }}>
-                <div style={{ width: "100%", maxWidth: 760, display: "flex", gap: isMobile ? 6 : 10, alignItems: "flex-end" }}>
+                <div style={{
+                    width: "100%", maxWidth: 760, display: "flex",
+                    gap: isMobile ? 8 : 10, alignItems: "flex-end",
+                    flexWrap: isMobile ? "wrap" : "nowrap",
+                    ...(isMobile ? {
+                        background: PANEL, border: `1px solid ${GOLD}44`,
+                        borderRadius: 16, padding: 8, boxSizing: "border-box",
+                    } : {}),
+                }}>
                     {isMobile ? (
-                        <button
-                            onClick={cycleMobileMode}
-                            disabled={disabled}
-                            title={`${modeTitle}. Tap to switch modes.`}
-                            style={{
-                                background: GOLD,
-                                border: `1.5px solid ${GOLD}`,
-                                borderRadius: 12,
-                                color: "#0f0f0f",
-                                fontFamily: "inherit",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                padding: "13px 9px",
-                                cursor: disabled ? "not-allowed" : "pointer",
-                                opacity: disabled ? 0.5 : 1,
-                                whiteSpace: "nowrap",
-                                flexShrink: 0,
-                                letterSpacing: "0.08em",
-                                textTransform: "uppercase",
-                                transition: "all 0.2s",
-                                minWidth: 52,
-                                boxShadow: curatorMode ? `0 0 12px ${GOLD}55` : "none",
-                            }}
-                        >
-                            {modeLabel}
-                        </button>
+                        <>
+                            <button
+                                onClick={onSelectCurator}
+                                disabled={disabled}
+                                title="Ask Jabril using archive-backed Curator intelligence"
+                                aria-pressed={!webMode}
+                                style={{
+                                    background: !webMode ? GOLD : "transparent",
+                                    border: `1.5px solid ${GOLD}`, borderRadius: 10,
+                                    color: !webMode ? "#0f0f0f" : GOLD,
+                                    fontFamily: "inherit", fontSize: 10, fontWeight: 700,
+                                    height: 40, padding: "0 7px", minWidth: 55,
+                                    cursor: disabled ? "not-allowed" : "pointer",
+                                    opacity: disabled ? 0.5 : 1, whiteSpace: "nowrap", flexShrink: 0,
+                                    letterSpacing: "0.04em", boxShadow: !webMode ? `0 0 12px ${GOLD}55` : "none",
+                                }}
+                            >JABRIL</button>
+                            <button
+                                onClick={onSelectWeb}
+                                disabled={disabled}
+                                title="Search the Web"
+                                aria-pressed={webMode}
+                                style={{
+                                    background: webMode ? GOLD : "transparent",
+                                    border: `1.5px solid ${GOLD}`, borderRadius: 10,
+                                    color: webMode ? "#0f0f0f" : GOLD,
+                                    fontFamily: "inherit", fontSize: 10, fontWeight: 700,
+                                    height: 40, padding: "0 7px", minWidth: 42,
+                                    cursor: disabled ? "not-allowed" : "pointer",
+                                    opacity: disabled ? 0.5 : 1, whiteSpace: "nowrap", flexShrink: 0,
+                                    letterSpacing: "0.04em",
+                                }}
+                            >WEB</button>
+                        </>
                     ) : (
                         <>
                             {/* Jabril mode — uses the existing Curator path in n8n */}
@@ -2566,8 +2574,8 @@ function InputBar({
                                 title="Attach a document for live web-assisted enhancement (10 MB max)"
                                 aria-label={attachment ? "Replace attached document" : "Attach a document"}
                                 style={{
-                                    width: isMobile ? 44 : 48,
-                                    height: 48,
+                                    width: isMobile ? 40 : 48,
+                                    height: isMobile ? 40 : 48,
                                     display: "grid",
                                     placeItems: "center",
                                     flexShrink: 0,
@@ -2594,13 +2602,15 @@ function InputBar({
                         placeholder={listening ? "Listening..." : attachment ? "Tell Jabril how to improve this document..." : webMode ? "Search the Web..." : "Ask Jabril..."}
                         disabled={disabled}
                         style={{
-                            flex: 1, minWidth: 0, minHeight: 48, maxHeight: 160,
+                            flex: isMobile ? "0 0 100%" : 1,
+                            order: isMobile ? -1 : 0,
+                            minWidth: 0, minHeight: 48, maxHeight: isMobile ? 144 : 160,
                             background: PANEL,
                             border: `1px solid ${GOLD}`,
                             borderRadius: 12,
                             color: TEXT, fontFamily: "inherit",
                             fontSize: 15, lineHeight: "22px",
-                            padding: "12px 18px", outline: "none",
+                            padding: isMobile ? "12px 14px" : "12px 18px", outline: "none",
                             resize: "none", overflowY: "hidden", boxSizing: "border-box",
                             boxShadow: listening ? `0 0 0 2px ${GOLD}44` : "none",
                             transition: "box-shadow 0.2s",
@@ -2619,7 +2629,12 @@ function InputBar({
                                 border: `1.5px solid ${GOLD}`,
                                 borderRadius: 12,
                                 color: listening ? "#0f0f0f" : GOLD,
-                                padding: "14px 16px",
+                                padding: isMobile ? 0 : "14px 16px",
+                                width: isMobile ? 40 : undefined,
+                                height: isMobile ? 40 : undefined,
+                                display: isMobile ? "grid" : undefined,
+                                placeItems: isMobile ? "center" : undefined,
+                                marginLeft: isMobile ? "auto" : undefined,
                                 cursor: disabled ? "not-allowed" : "pointer",
                                 opacity: disabled ? 0.5 : 1,
                                 fontSize: 18, lineHeight: 1,
@@ -2644,7 +2659,10 @@ function InputBar({
                             background: GOLD, border: "none", borderRadius: 12,
                             color: "#0f0f0f", fontFamily: "inherit",
                             fontSize: 13, fontWeight: 500,
-                            padding: "14px 28px", cursor: disabled ? "not-allowed" : "pointer",
+                            padding: isMobile ? "0 13px" : "14px 28px",
+                            height: isMobile ? 40 : undefined,
+                            marginLeft: isMobile && !supported ? "auto" : undefined,
+                            cursor: disabled ? "not-allowed" : "pointer",
                             opacity: disabled ? 0.5 : 1, whiteSpace: "nowrap",
                         }}
                         onMouseEnter={e => { if (!disabled) e.currentTarget.style.transform = "scale(1.02)" }}
