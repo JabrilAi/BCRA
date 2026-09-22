@@ -22,6 +22,32 @@ const FREE_LIMIT = 10
 const STORAGE_KEY = "jabrilai_questions_used"
 const REGISTERED_KEY = "jabrilai_has_registered"
 
+// Responsive viewport state. This is deliberately based on the viewport, not
+// a phone model, so foldables, rotation, browser resizing, and narrow phones
+// all reflow without a reload.
+function useResponsiveViewport() {
+    const [width, setWidth] = useState(() =>
+        typeof window !== "undefined" ? window.innerWidth : 1024
+    )
+
+    useEffect(() => {
+        const media = window.matchMedia("(max-width: 767px)")
+        const update = () => setWidth(window.innerWidth)
+        update()
+        media.addEventListener("change", update)
+        window.addEventListener("resize", update)
+        return () => {
+            media.removeEventListener("change", update)
+            window.removeEventListener("resize", update)
+        }
+    }, [])
+
+    return {
+        isMobile: width < 768,
+        isNarrow: width < 420,
+    }
+}
+
 function isPWA() {
     return window.matchMedia("(display-mode: standalone)").matches ||
         window.navigator.standalone === true
@@ -200,8 +226,10 @@ function ContributeNote({ isMobile }) {
             alignItems: isMobile ? "flex-start" : "center",
             justifyContent: "space-between",
             gap: isMobile ? 10 : 16,
+            width: "100%",
+            boxSizing: "border-box",
         }}>
-            <span style={{ fontSize: 13, lineHeight: 1.6, color: "#9a9590" }}>
+            <span style={{ fontSize: 13, lineHeight: 1.6, color: "#9a9590", minWidth: 0, maxWidth: "100%" }}>
                 If this information helped you please consider contributing to preserve and expand the archive.
             </span>
             <a
@@ -1843,7 +1871,7 @@ function ExportMenu({ answer, question, onClose, isMobile }) {
 }
 
 // ─── Chat Area ────────────────────────────────────────────────────────────────
-function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, loading, onCreatePodcast }) {
+function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, isNarrow, send, loading, onCreatePodcast }) {
     const [copied, setCopied]           = useState({})
     // diveDeeperUsed: { [msgId]: true } once Dive Deeper has been clicked for that message
     const [diveDeeperUsed, setDiveDeeperUsed] = useState({})
@@ -1932,13 +1960,16 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, load
         color: active ? GOLD : "#9a9590",
         fontSize: 13,
         fontWeight: 500,
-        padding: "6px 16px",
+        padding: "7px 10px",
         cursor: "pointer",
         fontFamily: "inherit",
+        minWidth: 0,
+        width: isNarrow ? "100%" : undefined,
+        boxSizing: "border-box",
     })
 
     return (
-        <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "20px 16px 270px" : "32px 40px 180px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "20px 16px calc(270px + env(safe-area-inset-bottom))" : "32px 40px 180px" }}>
             <style>{`
                 @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
                 @keyframes jaiThinkingOrbit { to { transform: rotate(360deg) } }
@@ -2165,14 +2196,23 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, load
 
                             {/* ── Mobile action buttons ── */}
                             {msg.role === "ai" && isMobile && (
-                                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16, marginBottom: 8, flexWrap: "wrap" }}>
+                                <div style={{
+                                    display: isNarrow ? "grid" : "flex",
+                                    gridTemplateColumns: isNarrow ? "repeat(2, minmax(0, 1fr))" : undefined,
+                                    justifyContent: "flex-end",
+                                    gap: isNarrow ? 8 : 8,
+                                    marginTop: 16,
+                                    marginBottom: 8,
+                                    flexWrap: "wrap",
+                                    width: "100%",
+                                }}>
                                     <button
                                         onClick={() => handleShare(msg, index)}
                                         style={mobileActionBtnStyle(copied[msg.id])}
                                     >
                                         {copied[msg.id] ? "✓ Shared" : "Share"}
                                     </button>
-                                    <div style={{ position: "relative" }}>
+                                    <div style={{ position: "relative", minWidth: 0 }}>
                                         <button
                                             onClick={() => setShowExport(showExport === msg.id ? null : msg.id)}
                                             style={mobileActionBtnStyle(showExport === msg.id)}
@@ -2191,7 +2231,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, load
                                         )}
                                     </div>
                                     {/* Mobile Translate button + picker */}
-                                    <div style={{ position: "relative" }}>
+                                    <div style={{ position: "relative", minWidth: 0 }}>
                                         <button
                                             onClick={() => setShowPicker(showPicker === msg.id ? null : msg.id)}
                                             disabled={isLoading}
@@ -2240,7 +2280,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, load
 }
 
 function InputBar({
-    value, onChange, onSend, onKeyDown, disabled, isMobile, hasSidebar, inputRef,
+    value, onChange, onSend, onKeyDown, disabled, isMobile, isNarrow, hasSidebar, inputRef,
     webMode, onSelectWeb, curatorMode, onSelectCurator,
     attachment, documentError, onFileSelect, onRemoveDocument,
 }) {
@@ -2367,7 +2407,7 @@ function InputBar({
             position: "fixed", bottom: 0,
             left: 0, right: 0,
             background: `linear-gradient(to top, ${BG} 65%, transparent)`,
-            paddingBottom: isMobile ? 24 : 32,
+            paddingBottom: isMobile ? "calc(24px + env(safe-area-inset-bottom))" : 32,
             paddingTop: isMobile ? 12 : 16,
             zIndex: 50,
         }}>
@@ -2444,16 +2484,16 @@ function InputBar({
                 marginLeft: ml,
                 display: "flex",
                 justifyContent: "center",
-                paddingLeft: isMobile ? 16 : 40,
-                paddingRight: isMobile ? 16 : 40,
+                paddingLeft: isMobile ? (isNarrow ? 10 : 16) : 40,
+                paddingRight: isMobile ? (isNarrow ? 10 : 16) : 40,
             }}>
                 <div style={{
                     width: "100%", maxWidth: 760, display: "flex",
-                    gap: isMobile ? 8 : 10, alignItems: "flex-end",
+                    gap: isMobile ? (isNarrow ? 6 : 8) : 10, alignItems: "flex-end",
                     flexWrap: isMobile ? "wrap" : "nowrap",
                     ...(isMobile ? {
                         background: PANEL, border: `1px solid ${GOLD}44`,
-                        borderRadius: 16, padding: 8, boxSizing: "border-box",
+                        borderRadius: 16, padding: isNarrow ? 6 : 8, boxSizing: "border-box",
                     } : {}),
                 }}>
                     {isMobile ? (
@@ -2468,7 +2508,7 @@ function InputBar({
                                     border: `1.5px solid ${GOLD}`, borderRadius: 10,
                                     color: !webMode ? "#0f0f0f" : GOLD,
                                     fontFamily: "inherit", fontSize: 10, fontWeight: 700,
-                                    height: 40, padding: "0 7px", minWidth: 55,
+                                    height: 40, padding: isNarrow ? "0 5px" : "0 7px", minWidth: isNarrow ? 50 : 55,
                                     cursor: disabled ? "not-allowed" : "pointer",
                                     opacity: disabled ? 0.5 : 1, whiteSpace: "nowrap", flexShrink: 0,
                                     letterSpacing: "0.04em", boxShadow: !webMode ? `0 0 12px ${GOLD}55` : "none",
@@ -2484,7 +2524,7 @@ function InputBar({
                                     border: `1.5px solid ${GOLD}`, borderRadius: 10,
                                     color: webMode ? "#0f0f0f" : GOLD,
                                     fontFamily: "inherit", fontSize: 10, fontWeight: 700,
-                                    height: 40, padding: "0 7px", minWidth: 42,
+                                    height: 40, padding: isNarrow ? "0 5px" : "0 7px", minWidth: isNarrow ? 40 : 42,
                                     cursor: disabled ? "not-allowed" : "pointer",
                                     opacity: disabled ? 0.5 : 1, whiteSpace: "nowrap", flexShrink: 0,
                                     letterSpacing: "0.04em",
@@ -2574,8 +2614,8 @@ function InputBar({
                                 title="Attach a document for live web-assisted enhancement (10 MB max)"
                                 aria-label={attachment ? "Replace attached document" : "Attach a document"}
                                 style={{
-                                    width: isMobile ? 40 : 48,
-                                    height: isMobile ? 40 : 48,
+                                    width: isMobile ? (isNarrow ? 38 : 40) : 48,
+                                    height: isMobile ? (isNarrow ? 40 : 40) : 48,
                                     display: "grid",
                                     placeItems: "center",
                                     flexShrink: 0,
@@ -2659,7 +2699,7 @@ function InputBar({
                             background: GOLD, border: "none", borderRadius: 12,
                             color: "#0f0f0f", fontFamily: "inherit",
                             fontSize: 13, fontWeight: 500,
-                            padding: isMobile ? "0 13px" : "14px 28px",
+                            padding: isMobile ? (isNarrow ? "0 11px" : "0 13px") : "14px 28px",
                             height: isMobile ? 40 : undefined,
                             marginLeft: isMobile && !supported ? "auto" : undefined,
                             cursor: disabled ? "not-allowed" : "pointer",
@@ -3669,7 +3709,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         onAuthNeeded(newUser)
     }
 
-    const isMobile = window.innerWidth < 768
+    const { isMobile, isNarrow } = useResponsiveViewport()
 
     if (booting) {
         return (
@@ -3680,7 +3720,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
     }
 
     return (
-        <div style={{ display: "flex", width: "100vw", height: "100vh", background: BG, color: TEXT, fontFamily: "'DM Sans', sans-serif", overflow: "hidden", position: "relative" }}>
+        <div style={{ display: "flex", width: "100vw", minHeight: "100vh", height: isMobile ? "100dvh" : "100vh", background: BG, color: TEXT, fontFamily: "'DM Sans', sans-serif", overflow: "hidden", position: "relative", boxSizing: "border-box" }}>
             {/* Signup gate overlay */}
             {showGate && (
                 <SignupGate
@@ -3729,7 +3769,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                 />
             )}
 
-            <main style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
+            <main style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, height: isMobile ? "100dvh" : "100vh", overflow: "hidden", boxSizing: "border-box" }}>
                 {/* Mobile top-right controls for logged-in users — no header, just floating buttons */}
                 {isMobile && user && (
                     <div style={{
@@ -3790,6 +3830,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                         messagesEndRef={messagesEndRef}
                         latestMsgRef={latestMsgRef}
                         isMobile={isMobile}
+                        isNarrow={isNarrow}
                         send={send}
                         loading={loading}
                         onCreatePodcast={user && PODCAST_CREATOR_ID && user.id === PODCAST_CREATOR_ID ? setPodcastTarget : null}
@@ -3804,6 +3845,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() } }}
                 disabled={loading}
                 isMobile={isMobile}
+                isNarrow={isNarrow}
                 hasSidebar={!isMobile && !!user}
                 inputRef={inputRef}
                 webMode={webMode}
@@ -3849,6 +3891,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 export default function App() {
+    const { isMobile } = useResponsiveViewport()
     const [user, setUser]           = useState(undefined)
         const [showInstall, setShowInstall] = useState(false)
     // True while the user is on the site via a "reset your password" email link.
@@ -3922,7 +3965,6 @@ export default function App() {
     }
 
     const pwa       = isPWA()
-    const isMobile  = window.innerWidth < 768
     const hasReg    = !!localStorage.getItem(REGISTERED_KEY)
 
     // PWA install — must register, no guest
