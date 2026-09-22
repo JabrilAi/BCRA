@@ -3637,7 +3637,16 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         }
 
         setLoading(false)
-        setTimeout(() => inputRef.current?.focus(), 50)
+        // On mobile, do not refocus the composer after an answer renders.
+        // Refocusing a textarea can reopen the virtual keyboard and push the
+        // newly rendered answer out of view. Desktop keeps the existing behavior.
+        setTimeout(() => {
+            if (isMobile) {
+                inputRef.current?.blur()
+            } else {
+                inputRef.current?.focus()
+            }
+        }, 50)
     }
 
     async function createPodcast({ message, question, title, durationMinutes }) {
