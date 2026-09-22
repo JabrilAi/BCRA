@@ -1347,6 +1347,172 @@ function PodcastPlayer({ episode, onClose }) {
     )
 }
 
+// ─── Research / thinking state ───────────────────────────────────────────────
+// n8n returns one completed webhook response rather than streaming node events,
+// so these stages are intentionally framed as progress narration—not live
+// workflow telemetry. Timers are cleaned up when the response arrives.
+const ARCHIVE_THINKING_STAGES = [
+    {
+        title: "Searching the archive",
+        detail: "Scanning the Black Civilization Research Archive for relevant passages.",
+    },
+    {
+        title: "Reviewing sources",
+        detail: "Checking the strongest passages, titles, and authors for relevance.",
+    },
+    {
+        title: "Connecting evidence",
+        detail: "Bringing the most useful archive findings into a coherent response.",
+    },
+    {
+        title: "Preparing the answer",
+        detail: "Shaping a clear, source-grounded answer with its citations intact.",
+    },
+]
+
+const WEB_THINKING_STAGES = [
+    {
+        title: "Searching the web",
+        detail: "Looking across current sources for information relevant to your question.",
+    },
+    {
+        title: "Reviewing sources",
+        detail: "Checking the most useful results for relevance and credibility.",
+    },
+    {
+        title: "Connecting evidence",
+        detail: "Comparing findings and bringing the strongest details together.",
+    },
+    {
+        title: "Preparing the answer",
+        detail: "Organizing the research into a clear response with useful links.",
+    },
+]
+
+function ThinkingState({ mode = "archive", isMobile = false }) {
+    const stages = mode === "web" ? WEB_THINKING_STAGES : ARCHIVE_THINKING_STAGES
+    const [stageIndex, setStageIndex] = useState(0)
+    const [longWait, setLongWait] = useState(false)
+
+    useEffect(() => {
+        setStageIndex(0)
+        setLongWait(false)
+
+        const stageTimers = [4500, 10000, 17000].map((delay, index) =>
+            setTimeout(() => setStageIndex(index + 1), delay)
+        )
+        const longWaitTimer = setTimeout(() => setLongWait(true), 30000)
+
+        return () => {
+            stageTimers.forEach(clearTimeout)
+            clearTimeout(longWaitTimer)
+        }
+    }, [mode])
+
+    const currentStage = stages[stageIndex]
+    const eyebrow = mode === "web" ? "Web research" : "Archive research"
+
+    return (
+        <div
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            aria-busy="true"
+            style={{
+                position: "relative",
+                overflow: "hidden",
+                border: `1px solid ${GOLD}42`,
+                borderRadius: 16,
+                background: `linear-gradient(135deg, ${GOLD}0D 0%, rgba(22,22,22,0.96) 46%, rgba(12,12,12,0.98) 100%)`,
+                boxShadow: `inset 0 1px 0 ${GOLD}12, 0 18px 50px rgba(0,0,0,0.22)`,
+                padding: isMobile ? "22px 18px" : "26px 28px",
+            }}
+        >
+            <div className="jai-thinking-sheen" aria-hidden="true" />
+
+            <div style={{
+                position: "relative",
+                zIndex: 1,
+                display: "flex",
+                flexDirection: isMobile ? "column" : "row",
+                alignItems: isMobile ? "flex-start" : "center",
+                gap: isMobile ? 18 : 24,
+            }}>
+                <div className="jai-thinking-beacon" aria-hidden="true">
+                    <span className="jai-thinking-orbit jai-thinking-orbit-one"><i /></span>
+                    <span className="jai-thinking-orbit jai-thinking-orbit-two"><i /></span>
+                    <span className="jai-thinking-core">✦</span>
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                        color: GOLD,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: "0.18em",
+                        textTransform: "uppercase",
+                        marginBottom: 9,
+                    }}>
+                        {eyebrow}
+                    </div>
+
+                    <div key={`${mode}-${stageIndex}`} className="jai-thinking-copy">
+                        <div style={{
+                            color: TEXT,
+                            fontFamily: "Georgia, 'Times New Roman', serif",
+                            fontSize: isMobile ? 21 : 23,
+                            fontStyle: "italic",
+                            lineHeight: 1.25,
+                            marginBottom: 7,
+                        }}>
+                            {currentStage.title}<span className="jai-thinking-ellipsis" aria-hidden="true" />
+                        </div>
+                        <p style={{
+                            color: "#9a9590",
+                            fontSize: isMobile ? 13 : 14,
+                            lineHeight: 1.6,
+                            margin: 0,
+                            maxWidth: 520,
+                        }}>
+                            {currentStage.detail}
+                        </p>
+                    </div>
+
+                    <div
+                        aria-hidden="true"
+                        style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 18 }}
+                    >
+                        {stages.map((stage, index) => (
+                            <span
+                                key={stage.title}
+                                style={{
+                                    width: index === stageIndex ? 28 : 8,
+                                    height: 3,
+                                    borderRadius: 999,
+                                    background: index <= stageIndex ? GOLD : BORDER,
+                                    opacity: index < stageIndex ? 0.55 : 1,
+                                    transition: "width 0.45s ease, background 0.45s ease, opacity 0.45s ease",
+                                }}
+                            />
+                        ))}
+                    </div>
+
+                    {longWait && (
+                        <p className="jai-thinking-long-wait" style={{
+                            color: "#7f7a73",
+                            fontSize: 11,
+                            lineHeight: 1.5,
+                            margin: "14px 0 0",
+                        }}>
+                            Still working—deeper research can take a little longer.
+                        </p>
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+}
+
 // ─── Chat Area ────────────────────────────────────────────────────────────────
 function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, loading, onCreatePodcast }) {
     const [copied, setCopied]           = useState({})
@@ -1445,6 +1611,63 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, load
         <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "20px 16px 200px" : "32px 40px 180px" }}>
             <style>{`
                 @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+                @keyframes jaiThinkingOrbit { to { transform: rotate(360deg) } }
+                @keyframes jaiThinkingOrbitReverse { to { transform: rotate(-360deg) } }
+                @keyframes jaiThinkingPulse {
+                    0%, 100% { transform: scale(0.94); box-shadow: 0 0 0 0 rgba(201,168,76,0.18); }
+                    50% { transform: scale(1); box-shadow: 0 0 0 10px rgba(201,168,76,0); }
+                }
+                @keyframes jaiThinkingSheen {
+                    0% { transform: translateX(-130%) skewX(-14deg); }
+                    55%, 100% { transform: translateX(260%) skewX(-14deg); }
+                }
+                @keyframes jaiThinkingCopyIn {
+                    from { opacity: 0; transform: translateY(5px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                @keyframes jaiThinkingEllipsis {
+                    0%, 100% { opacity: 0.25; }
+                    50% { opacity: 1; }
+                }
+                .jai-thinking-sheen {
+                    position: absolute; inset: 0 auto 0 0; width: 34%;
+                    background: linear-gradient(90deg, transparent, rgba(201,168,76,0.055), transparent);
+                    animation: jaiThinkingSheen 5.2s ease-in-out infinite;
+                    pointer-events: none;
+                }
+                .jai-thinking-beacon {
+                    position: relative; width: 72px; height: 72px; flex: 0 0 72px;
+                    display: grid; place-items: center;
+                }
+                .jai-thinking-core {
+                    position: relative; z-index: 2; width: 34px; height: 34px;
+                    display: grid; place-items: center; border-radius: 50%;
+                    color: #0f0f0f; background: ${GOLD}; font-size: 16px;
+                    animation: jaiThinkingPulse 2.4s ease-in-out infinite;
+                }
+                .jai-thinking-orbit {
+                    position: absolute; inset: 5px; border: 1px solid rgba(201,168,76,0.25);
+                    border-radius: 50%; animation: jaiThinkingOrbit 3.8s linear infinite;
+                }
+                .jai-thinking-orbit-two {
+                    inset: 14px; border-color: rgba(201,168,76,0.16);
+                    animation: jaiThinkingOrbitReverse 2.8s linear infinite;
+                }
+                .jai-thinking-orbit i {
+                    position: absolute; left: 50%; top: -3px; width: 6px; height: 6px;
+                    margin-left: -3px; border-radius: 50%; background: ${GOLD};
+                    box-shadow: 0 0 10px rgba(201,168,76,0.7);
+                }
+                .jai-thinking-orbit-two i { width: 4px; height: 4px; top: -2px; margin-left: -2px; opacity: 0.65; }
+                .jai-thinking-copy { animation: jaiThinkingCopyIn 0.4s ease both; }
+                .jai-thinking-ellipsis::after { content: "..."; animation: jaiThinkingEllipsis 1.4s steps(1, end) infinite; }
+                .jai-thinking-long-wait { animation: jaiThinkingCopyIn 0.4s ease both; }
+                @media (prefers-reduced-motion: reduce) {
+                    .jai-thinking-sheen, .jai-thinking-core, .jai-thinking-orbit,
+                    .jai-thinking-copy, .jai-thinking-ellipsis::after, .jai-thinking-long-wait {
+                        animation: none !important;
+                    }
+                }
             `}</style>
             <div style={{ maxWidth: 720, margin: "0 auto" }}>
                 {messages.map((msg, index) => {
@@ -1586,8 +1809,11 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, load
                                 </p>
                             )}
 
-                            {/* ── Message content ── */}
-                            <MessageText text={displayText} role={msg.role} />
+                            {/* ── Message content / research state ── */}
+                            {msg.role === "loading"
+                                ? <ThinkingState mode={msg.mode} isMobile={isMobile} />
+                                : <MessageText text={displayText} role={msg.role} />
+                            }
 
                             {/* ── Mobile action buttons ── */}
                             {msg.role === "ai" && isMobile && (
@@ -2708,7 +2934,12 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         }
 
         const userMsg    = { id: `u-${Date.now()}`, role: "user",    text: query }
-        const loadingMsg = { id: `l-${Date.now()}`, role: "loading", text: webMode ? "Searching the web..." : "Jabril is thinking..." }
+        const loadingMsg = {
+            id: `l-${Date.now()}`,
+            role: "loading",
+            mode: webMode ? "web" : "archive",
+            text: webMode ? "Searching the web..." : "Jabril is thinking...",
+        }
         setMessages(prev => [...prev, userMsg, loadingMsg])
 
         if (user) await dbSaveMessage(sessionId, user.id, "user", query)
@@ -3141,4 +3372,3 @@ export default function App() {
         />
     )
 }
-
