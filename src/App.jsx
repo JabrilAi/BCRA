@@ -137,6 +137,14 @@ async function dbDeleteAllSessions(userId) {
 
 // ─── Constants & utilities (unchanged) ───────────────────────────────────────
 const WEBHOOK_URL = "https://anthonyai.app.n8n.cloud/webhook/11"
+const DOCUMENT_WEBHOOK_URL =
+    import.meta.env.VITE_DOCUMENT_WEBHOOK_URL ||
+    "https://anthonyai.app.n8n.cloud/webhook/jabril-document"
+
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
+const MAX_DOCUMENT_TEXT_CHARS = 80000
+const ACCEPTED_DOCUMENT_EXTENSIONS = ["pdf", "docx", "txt", "csv", "xls", "xlsx"]
+const DOCUMENT_ACCEPT = ".pdf,.docx,.txt,.csv,.xls,.xlsx"
 
 // Creator-only podcast endpoint. The server-side n8n workflow is the
 // authoritative authorization boundary; this client-side ID only controls
@@ -423,6 +431,192 @@ function printConversation(messages) {
     `)
     win.document.close()
     win.print()
+}
+
+function getFileExtension(name = "") {
+    return String(name).split(".").pop()?.toLowerCase() || ""
+}
+
+function validateDocument(file) {
+    if (!file) return "Choose a document to upload."
+    const extension = getFileExtension(file.name)
+    if (!ACCEPTED_DOCUMENT_EXTENSIONS.includes(extension)) {
+        return "Use a PDF, Word (.docx), text, CSV, or Excel file."
+    }
+    if (file.size > MAX_DOCUMENT_BYTES) {
+        return "Documents must be 10 MB or smaller."
+    }
+    return ""
+}
+
+async function inflateZipEntry(bytes, method) {
+    if (method === 0) return bytes
+    if (method !== 8) throw new Error("This Word document uses an unsupported compression method.")
+    if (typeof DecompressionStream === "undefined") {
+        throw new Error("This browser cannot read Word files. Save the document as PDF and try again.")
+    }
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"))
+    return new Uint8Array(await new Response(stream).arrayBuffer())
+}
+
+// DOCX is a ZIP package. Read only word/document.xml in the browser so the
+// original private file never needs third-party conversion or permanent storage.
+async function extractDocxText(file) {
+    const buffer = await file.arrayBuffer()
+    const view = new DataView(buffer)
+    const bytes = new Uint8Array(buffer)
+    const decoder = new TextDecoder("utf-8")
+
+    let endOffset = -1
+    const scanStart = Math.max(0, bytes.length - 65557)
+    for (let offset = bytes.length - 22; offset >= scanStart; offset -= 1) {
+        if (view.getUint32(offset, true) === 0x06054b50) {
+            endOffset = offset
+            break
+        }
+    }
+    if (endOffset < 0) throw new Error("The Word document could not be opened.")
+
+    const entryCount = view.getUint16(endOffset + 10, true)
+    let centralOffset = view.getUint32(endOffset + 16, true)
+    let documentEntry = null
+
+    for (let index = 0; index < entryCount; index += 1) {
+        if (view.getUint32(centralOffset, true) !== 0x02014b50) break
+        const method = view.getUint16(centralOffset + 10, true)
+        const compressedSize = view.getUint32(centralOffset + 20, true)
+        const fileNameLength = view.getUint16(centralOffset + 28, true)
+        const extraLength = view.getUint16(centralOffset + 30, true)
+        const commentLength = view.getUint16(centralOffset + 32, true)
+        const localOffset = view.getUint32(centralOffset + 42, true)
+        const entryName = decoder.decode(bytes.slice(centralOffset + 46, centralOffset + 46 + fileNameLength))
+
+        if (entryName === "word/document.xml") {
+            documentEntry = { method, compressedSize, localOffset }
+            break
+        }
+        centralOffset += 46 + fileNameLength + extraLength + commentLength
+    }
+
+    if (!documentEntry) throw new Error("No readable document content was found in this Word file.")
+    if (view.getUint32(documentEntry.localOffset, true) !== 0x04034b50) {
+        throw new Error("The Word document is damaged or incomplete.")
+    }
+
+    const localNameLength = view.getUint16(documentEntry.localOffset + 26, true)
+    const localExtraLength = view.getUint16(documentEntry.localOffset + 28, true)
+    const dataStart = documentEntry.localOffset + 30 + localNameLength + localExtraLength
+    const compressed = bytes.slice(dataStart, dataStart + documentEntry.compressedSize)
+    const xmlBytes = await inflateZipEntry(compressed, documentEntry.method)
+    const xml = decoder.decode(xmlBytes)
+    const doc = new DOMParser().parseFromString(xml, "application/xml")
+    if (doc.querySelector("parsererror")) throw new Error("The Word document contains invalid content.")
+
+    const paragraphs = [...doc.getElementsByTagNameNS("*", "p")].map(paragraph => {
+        let line = ""
+        const walker = doc.createTreeWalker(paragraph, NodeFilter.SHOW_ELEMENT)
+        let node = walker.currentNode
+        while (node) {
+            if (node.localName === "t") line += node.textContent || ""
+            if (node.localName === "tab") line += "\t"
+            if (node.localName === "br") line += "\n"
+            node = walker.nextNode()
+        }
+        return line.trimEnd()
+    }).filter(Boolean)
+
+    const text = paragraphs.join("\n\n").trim()
+    if (!text) throw new Error("No readable text was found in this Word document.")
+    return text.slice(0, MAX_DOCUMENT_TEXT_CHARS)
+}
+
+async function prepareDocumentUpload(file) {
+    const extension = getFileExtension(file?.name)
+    if (extension === "docx") {
+        return { documentText: await extractDocxText(file) }
+    }
+    if (extension === "txt") {
+        const documentText = (await file.text()).trim()
+        if (!documentText) throw new Error("The text document is empty.")
+        return { documentText: documentText.slice(0, MAX_DOCUMENT_TEXT_CHARS) }
+    }
+    return { file }
+}
+
+function safeExportName(question = "") {
+    const base = String(question || "jabril-enhanced-document")
+        .replace(/^📎[^\n]+\n*/u, "")
+        .replace(/[^a-z0-9]+/gi, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 54)
+        .toLowerCase()
+    return base || "jabril-enhanced-document"
+}
+
+function triggerDownload(blob, fileName) {
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+function answerToHTML(text = "") {
+    return String(text).split("\n").map(line => {
+        const trimmed = line.trim()
+        if (!trimmed) return '<div class="space"></div>'
+        const clean = trimmed.replace(/^#{1,3}\s*/, "")
+        if (/^[-•]\s+/.test(clean)) return `<p class="bullet">• ${escapeHTML(clean.replace(/^[-•]\s+/, ""))}</p>`
+        if (/^\[BCRA\s*•/.test(clean)) return `<p class="citation">${escapeHTML(clean)}</p>`
+        const heading = clean.length < 72 && !/[.,;:]$/.test(clean)
+        return heading ? `<h2>${escapeHTML(clean)}</h2>` : `<p>${escapeHTML(clean)}</p>`
+    }).join("")
+}
+
+function exportAnswerAsWord(answer, question) {
+    const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+        body{font-family:Georgia,serif;color:#171717;line-height:1.65;margin:48px;max-width:760px}
+        h1{font:700 14px Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#9a7825;border-bottom:1px solid #d8c58d;padding-bottom:12px}
+        h2{font-size:18px;color:#8a6c21;margin:22px 0 7px}.space{height:8px}p{margin:0 0 9px}
+        .bullet{margin-left:18px}.citation{color:#8a6c21;font-size:10pt}
+    </style></head><body><h1>Jabril AI — Enhanced Document</h1>${answerToHTML(answer)}</body></html>`
+    triggerDownload(new Blob(["\ufeff", html], { type: "application/msword;charset=utf-8" }), `${safeExportName(question)}.doc`)
+}
+
+function exportAnswerAsExcel(answer, question) {
+    const lines = String(answer).split("\n").map(line => line.trim()).filter(Boolean)
+    const tableLines = lines.filter(line => /^\|.*\|$/.test(line))
+    let rows
+    if (tableLines.length >= 2) {
+        rows = tableLines
+            .map(line => line.slice(1, -1).split("|").map(cell => cell.trim()))
+            .filter(row => !row.every(cell => /^:?-{3,}:?$/.test(cell)))
+    } else {
+        rows = [["Jabril AI — Enhanced Document"], ...lines.map(line => [line.replace(/^[-•]\s*/, "")])]
+    }
+    const cells = rows.map(row => `<Row>${row.map(cell => `<Cell><Data ss:Type="String">${escapeHTML(cell)}</Data></Cell>`).join("")}</Row>`).join("")
+    const xml = `<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Jabril Enhanced"><Table>${cells}</Table></Worksheet></Workbook>`
+    triggerDownload(new Blob(["\ufeff", xml], { type: "application/vnd.ms-excel;charset=utf-8" }), `${safeExportName(question)}.xls`)
+}
+
+function exportAnswerAsPDF(answer, question) {
+    const win = window.open("", "_blank")
+    if (!win) {
+        alert("Allow pop-ups to export this answer as a PDF.")
+        return
+    }
+    win.document.write(`<!doctype html><html><head><title>${escapeHTML(safeExportName(question))}</title><style>
+        @page{margin:0.7in}body{font-family:Georgia,serif;color:#171717;line-height:1.65;margin:0}
+        h1{font:700 12px Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#9a7825;border-bottom:1px solid #d8c58d;padding-bottom:12px}
+        h2{font-size:17px;color:#8a6c21;margin:20px 0 6px}.space{height:8px}p{margin:0 0 8px}
+        .bullet{margin-left:18px}.citation{color:#8a6c21;font-size:9pt}
+    </style></head><body><h1>Jabril AI — Enhanced Document</h1>${answerToHTML(answer)}</body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 250)
 }
 
 // ─── UI Components (unchanged) ───────────────────────────────────────────────
@@ -1119,9 +1313,70 @@ function MessageText({ text, role }) {
         })
     }
 
+    const lines = normalizeCitationSpacing(text).split("\n")
+    const blocks = []
+    const tableCells = line => line.trim().replace(/^\||\|$/g, "").split("|").map(cell => cell.trim())
+    const isTableDivider = line => {
+        const cells = tableCells(line)
+        return cells.length > 0 && cells.every(cell => /^:?-{3,}:?$/.test(cell))
+    }
+
+    for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index]
+        if (/^\s*\|.*\|\s*$/.test(line) && isTableDivider(lines[index + 1] || "")) {
+            const headers = tableCells(line)
+            const rows = []
+            index += 2
+            while (index < lines.length && /^\s*\|.*\|\s*$/.test(lines[index])) {
+                rows.push(tableCells(lines[index]))
+                index += 1
+            }
+            index -= 1
+            blocks.push({ type: "table", headers, rows })
+        } else {
+            blocks.push({ type: "line", value: line })
+        }
+    }
+
     return (
         <div style={{ fontSize: 17, lineHeight: 1.9, color: role === "loading" ? GOLD : TEXT, fontFamily: "inherit", opacity: role === "loading" ? 0.85 : 1 }}>
-            {normalizeCitationSpacing(text).split("\n").map((line, i) => {
+            {blocks.map((block, i) => {
+                if (block.type === "table") return (
+                    <div key={`table-${i}`} style={{ overflowX: "auto", margin: "16px 0 20px", border: `1px solid ${BORDER}`, borderRadius: 10 }}>
+                        <table style={{ width: "100%", minWidth: 520, borderCollapse: "collapse", fontSize: 14, lineHeight: 1.55 }}>
+                            <thead>
+                                <tr>
+                                    {block.headers.map((header, column) => (
+                                        <th key={column} scope="col" style={{
+                                            padding: "11px 13px", textAlign: "left", color: GOLD,
+                                            background: `${GOLD}10`, borderBottom: `1px solid ${GOLD}44`,
+                                            fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase",
+                                        }}>
+                                            {renderLineWithCitations(header)}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {block.rows.map((row, rowIndex) => (
+                                    <tr key={rowIndex}>
+                                        {block.headers.map((_, column) => (
+                                            <td key={column} style={{
+                                                padding: "10px 13px", verticalAlign: "top",
+                                                borderBottom: rowIndex === block.rows.length - 1 ? "none" : `1px solid ${BORDER}`,
+                                                color: TEXT,
+                                            }}>
+                                                {renderLineWithCitations(row[column] || "")}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )
+
+                const line = block.value
                 if (line.trim() === "") return null
                 const isHeader = role === "ai" &&
                     !line.trim().startsWith("*") &&
@@ -1389,8 +1644,29 @@ const WEB_THINKING_STAGES = [
     },
 ]
 
+const DOCUMENT_THINKING_STAGES = [
+    {
+        title: "Reading your document",
+        detail: "Preparing the uploaded material as private working context for this request.",
+    },
+    {
+        title: "Searching the web",
+        detail: "Finding current, credible sources that can strengthen the document without changing its facts.",
+    },
+    {
+        title: "Connecting evidence",
+        detail: "Aligning the most relevant web findings with the document's purpose and structure.",
+    },
+    {
+        title: "Preparing the enhanced document",
+        detail: "Formatting the complete revision and preserving useful web citations.",
+    },
+]
+
 function ThinkingState({ mode = "archive", isMobile = false }) {
-    const stages = mode === "web" ? WEB_THINKING_STAGES : ARCHIVE_THINKING_STAGES
+    const stages = mode === "document"
+        ? DOCUMENT_THINKING_STAGES
+        : mode === "web" ? WEB_THINKING_STAGES : ARCHIVE_THINKING_STAGES
     const [stageIndex, setStageIndex] = useState(0)
     const [longWait, setLongWait] = useState(false)
 
@@ -1410,7 +1686,9 @@ function ThinkingState({ mode = "archive", isMobile = false }) {
     }, [mode])
 
     const currentStage = stages[stageIndex]
-    const eyebrow = mode === "web" ? "Web research" : "Archive research"
+    const eyebrow = mode === "document"
+        ? "Document studio"
+        : mode === "web" ? "Web research" : "Archive research"
 
     return (
         <div
@@ -1513,6 +1791,57 @@ function ThinkingState({ mode = "archive", isMobile = false }) {
     )
 }
 
+function ExportMenu({ answer, question, onClose, isMobile }) {
+    const optionStyle = {
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 16,
+        background: "transparent",
+        border: "none",
+        color: TEXT,
+        padding: "10px 12px",
+        fontFamily: "inherit",
+        fontSize: 12,
+        textAlign: "left",
+        cursor: "pointer",
+        borderRadius: 7,
+    }
+
+    function run(format) {
+        if (format === "pdf") exportAnswerAsPDF(answer, question)
+        if (format === "word") exportAnswerAsWord(answer, question)
+        if (format === "excel") exportAnswerAsExcel(answer, question)
+        onClose()
+    }
+
+    return (
+        <div style={{
+            position: "absolute",
+            right: 0,
+            top: "calc(100% + 6px)",
+            zIndex: 90,
+            width: isMobile ? 210 : 200,
+            padding: 6,
+            background: "#1b1b1b",
+            border: `1px solid ${GOLD}55`,
+            borderRadius: 10,
+            boxShadow: "0 14px 36px rgba(0,0,0,0.55)",
+        }}>
+            <button onClick={() => run("pdf")} style={optionStyle} onMouseEnter={e => e.currentTarget.style.background = `${GOLD}18`} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <span>PDF</span><span style={{ color: MUTED }}>Print / save</span>
+            </button>
+            <button onClick={() => run("word")} style={optionStyle} onMouseEnter={e => e.currentTarget.style.background = `${GOLD}18`} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <span>Word</span><span style={{ color: MUTED }}>.doc</span>
+            </button>
+            <button onClick={() => run("excel")} style={optionStyle} onMouseEnter={e => e.currentTarget.style.background = `${GOLD}18`} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <span>Excel</span><span style={{ color: MUTED }}>.xls</span>
+            </button>
+        </div>
+    )
+}
+
 // ─── Chat Area ────────────────────────────────────────────────────────────────
 function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, loading, onCreatePodcast }) {
     const [copied, setCopied]           = useState({})
@@ -1528,6 +1857,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, load
     const [translateError, setTranslateError] = useState({})
     // showPicker: msgId | null
     const [showPicker, setShowPicker]   = useState(null)
+    const [showExport, setShowExport]   = useState(null)
 
     function handleShare(msg, index) {
         const question = messages[index - 1]?.text || ""
@@ -1708,6 +2038,24 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, load
                                         >
                                             Print
                                         </button>
+                                        <div style={{ position: "relative" }}>
+                                            <button
+                                                onClick={() => setShowExport(showExport === msg.id ? null : msg.id)}
+                                                style={actionBtnStyle(showExport === msg.id)}
+                                                aria-expanded={showExport === msg.id}
+                                                aria-haspopup="menu"
+                                            >
+                                                Export
+                                            </button>
+                                            {showExport === msg.id && (
+                                                <ExportMenu
+                                                    answer={msg.text}
+                                                    question={messages[index - 1]?.text || ""}
+                                                    onClose={() => setShowExport(null)}
+                                                    isMobile={false}
+                                                />
+                                            )}
+                                        </div>
                                         {/* Creator-only podcast button */}
                                         {onCreatePodcast && (
                                             <button
@@ -1824,6 +2172,24 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, load
                                     >
                                         {copied[msg.id] ? "✓ Shared" : "Share"}
                                     </button>
+                                    <div style={{ position: "relative" }}>
+                                        <button
+                                            onClick={() => setShowExport(showExport === msg.id ? null : msg.id)}
+                                            style={mobileActionBtnStyle(showExport === msg.id)}
+                                            aria-expanded={showExport === msg.id}
+                                            aria-haspopup="menu"
+                                        >
+                                            Export
+                                        </button>
+                                        {showExport === msg.id && (
+                                            <ExportMenu
+                                                answer={msg.text}
+                                                question={messages[index - 1]?.text || ""}
+                                                onClose={() => setShowExport(null)}
+                                                isMobile={true}
+                                            />
+                                        )}
+                                    </div>
                                     {/* Mobile Translate button + picker */}
                                     <div style={{ position: "relative" }}>
                                         <button
@@ -1873,14 +2239,32 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, send, load
     )
 }
 
-function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasSidebar, inputRef, webMode, onSelectWeb, curatorMode, onSelectCurator }) {
+function InputBar({
+    value, onChange, onSend, onKeyDown, disabled, isMobile, hasSidebar, inputRef,
+    webMode, onSelectWeb, curatorMode, onSelectCurator,
+    attachment, documentError, onFileSelect, onRemoveDocument,
+}) {
     const [listening, setListening]   = useState(false)
     const [voiceError, setVoiceError] = useState("")
     const recognitionRef              = useRef(null)
     const silenceTimerRef             = useRef(null)
+    const fileInputRef                = useRef(null)
     const ml = hasSidebar ? 220 : 0
     const modeLabel = webMode ? "WEB" : "JABRIL"
     const modeTitle = webMode ? "Web mode" : "Jabril mode: archive-backed Curator"
+
+    useEffect(() => {
+        const el = inputRef.current
+        if (!el) return
+
+        // Reset first so the composer can shrink again when text is deleted or sent.
+        el.style.height = "auto"
+
+        // Grow with the prompt, then scroll internally once it reaches the cap.
+        const maxHeight = 160
+        el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`
+        el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden"
+    }, [value, inputRef])
 
     function cycleMobileMode() {
         if (disabled) return
@@ -2011,6 +2395,59 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
                     <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
                 </div>
             )}
+            {webMode && (attachment || documentError) && (
+                <div style={{
+                    marginLeft: ml,
+                    display: "flex",
+                    justifyContent: "center",
+                    paddingLeft: isMobile ? 16 : 40,
+                    paddingRight: isMobile ? 16 : 40,
+                    marginBottom: 8,
+                }}>
+                    <div style={{ width: "100%", maxWidth: 760 }}>
+                        {attachment && (
+                            <div style={{
+                                display: "inline-flex",
+                                maxWidth: "100%",
+                                alignItems: "center",
+                                gap: 9,
+                                padding: "7px 10px",
+                                background: `${GOLD}12`,
+                                border: `1px solid ${GOLD}55`,
+                                borderRadius: 9,
+                                color: TEXT,
+                                fontSize: 12,
+                            }}>
+                                <span aria-hidden="true" style={{ color: GOLD }}>▱</span>
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {attachment.name}
+                                </span>
+                                <span style={{ color: MUTED, flexShrink: 0 }}>
+                                    {(attachment.size / (1024 * 1024)).toFixed(attachment.size < 1024 * 1024 ? 2 : 1)} MB
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={onRemoveDocument}
+                                    disabled={disabled}
+                                    aria-label={`Remove ${attachment.name}`}
+                                    style={{
+                                        background: "transparent", border: "none", color: MUTED,
+                                        cursor: disabled ? "not-allowed" : "pointer", padding: "0 2px",
+                                        fontSize: 15, lineHeight: 1,
+                                    }}
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        )}
+                        {documentError && (
+                            <div role="alert" style={{ color: "#e07070", fontSize: 12, marginTop: attachment ? 6 : 0 }}>
+                                {documentError}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
             <div style={{
                 marginLeft: ml,
                 display: "flex",
@@ -2018,7 +2455,7 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
                 paddingLeft: isMobile ? 16 : 40,
                 paddingRight: isMobile ? 16 : 40,
             }}>
-                <div style={{ width: "100%", maxWidth: 760, display: "flex", gap: isMobile ? 6 : 10, alignItems: "center" }}>
+                <div style={{ width: "100%", maxWidth: 760, display: "flex", gap: isMobile ? 6 : 10, alignItems: "flex-end" }}>
                     {isMobile ? (
                         <button
                             onClick={cycleMobileMode}
@@ -2107,19 +2544,64 @@ function InputBar({ value, onChange, onSend, onKeyDown, disabled, isMobile, hasS
                             </button>
                         </>
                     )}
-                    <input
+                    {webMode && (
+                        <>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept={DOCUMENT_ACCEPT}
+                                tabIndex={-1}
+                                aria-hidden="true"
+                                style={{ display: "none" }}
+                                onChange={event => {
+                                    const file = event.target.files?.[0]
+                                    if (file) onFileSelect(file)
+                                    event.target.value = ""
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={disabled}
+                                title="Attach a document for live web-assisted enhancement (10 MB max)"
+                                aria-label={attachment ? "Replace attached document" : "Attach a document"}
+                                style={{
+                                    width: isMobile ? 44 : 48,
+                                    height: 48,
+                                    display: "grid",
+                                    placeItems: "center",
+                                    flexShrink: 0,
+                                    background: attachment ? `${GOLD}18` : "transparent",
+                                    border: `1.5px solid ${GOLD}`,
+                                    borderRadius: 12,
+                                    color: GOLD,
+                                    cursor: disabled ? "not-allowed" : "pointer",
+                                    opacity: disabled ? 0.5 : 1,
+                                }}
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M21.4 11.6 12 21a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7L9.2 18.2a2 2 0 0 1-2.8-2.8l8.6-8.6"/>
+                                </svg>
+                            </button>
+                        </>
+                    )}
+                    <textarea
                         ref={inputRef}
+                        rows={1}
                         value={value}
                         onChange={onChange}
                         onKeyDown={onKeyDown}
-                        placeholder={listening ? "Listening..." : webMode ? "Search the Web..." : "Ask Jabril..."}
+                        placeholder={listening ? "Listening..." : attachment ? "Tell Jabril how to improve this document..." : webMode ? "Search the Web..." : "Ask Jabril..."}
                         disabled={disabled}
                         style={{
-                            flex: 1, minWidth: 0, background: PANEL,
-                            border: `1px solid ${listening ? GOLD : GOLD}`,
+                            flex: 1, minWidth: 0, minHeight: 48, maxHeight: 160,
+                            background: PANEL,
+                            border: `1px solid ${GOLD}`,
                             borderRadius: 12,
                             color: TEXT, fontFamily: "inherit",
-                            fontSize: 15, padding: "14px 18px", outline: "none",
+                            fontSize: 15, lineHeight: "22px",
+                            padding: "12px 18px", outline: "none",
+                            resize: "none", overflowY: "hidden", boxSizing: "border-box",
                             boxShadow: listening ? `0 0 0 2px ${GOLD}44` : "none",
                             transition: "box-shadow 0.2s",
                         }}
@@ -2806,6 +3288,8 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
     const inputRef                          = useRef(null)
     const [webMode, setWebMode]             = useState(false)
     const [curatorMode, setCuratorMode]     = useState(true)
+    const [attachment, setAttachment]       = useState(null)
+    const [documentError, setDocumentError] = useState("")
     const [podcastTarget, setPodcastTarget] = useState(null)
     const [podcastCreating, setPodcastCreating] = useState(false)
     const [podcastEpisode, setPodcastEpisode] = useState(null)
@@ -2847,6 +3331,22 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
 
     function newChat() {
         setActiveId(null); setMessages([]); setPrompt(""); setView("welcome")
+        setAttachment(null); setDocumentError("")
+    }
+
+    function selectDocument(file) {
+        const error = validateDocument(file)
+        if (error) {
+            setAttachment(null)
+            setDocumentError(error)
+            return
+        }
+        setAttachment(file)
+        setDocumentError("")
+        // Document enhancement is a Web Mode capability. Keep this guard even
+        // though the attachment control is hidden outside Web Mode.
+        setCuratorMode(false)
+        setWebMode(true)
     }
 
     async function loadSession(id) {
@@ -2901,7 +3401,11 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
     }
 
     async function send(queryOverride) {
-        const query = (queryOverride || prompt).trim()
+        const document = attachment
+        const typedQuery = String(queryOverride || prompt || "").trim()
+        const query = typedQuery || (document
+            ? "Review and enhance this document using relevant, credible live web sources."
+            : "")
         if (!query || query.length < 2 || loading) return
 
         // Anonymous user hit the limit — show signup gate
@@ -2910,13 +3414,14 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
             return
         }
 
-        setPrompt(""); setLoading(true); setView("chat")
+        setPrompt(""); setLoading(true); setView("chat"); setDocumentError("")
 
         let sessionId = activeId
 
         // Logged-in: always create a new session for each new question
         if (user && !sessionId) {
-            const title = query.slice(0, 60) + (query.length > 60 ? "…" : "")
+            const titleSource = document ? `${document.name}: ${query}` : query
+            const title = titleSource.slice(0, 60) + (titleSource.length > 60 ? "…" : "")
             try {
                 const newSession = await dbCreateSession(user.id, title)
                 sessionId = newSession.id
@@ -2933,21 +3438,36 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
             setActiveId(sessionId)
         }
 
-        const userMsg    = { id: `u-${Date.now()}`, role: "user",    text: query }
+        const displayQuery = document ? `📎 ${document.name}\n\n${query}` : query
+        const userMsg    = { id: `u-${Date.now()}`, role: "user", text: displayQuery }
         const loadingMsg = {
             id: `l-${Date.now()}`,
             role: "loading",
-            mode: webMode ? "web" : "archive",
-            text: webMode ? "Searching the web..." : "Jabril is thinking...",
+            mode: document ? "document" : webMode ? "web" : "archive",
+            text: document ? "Jabril is enhancing your document..." : webMode ? "Searching the web..." : "Jabril is thinking...",
         }
         setMessages(prev => [...prev, userMsg, loadingMsg])
 
-        if (user) await dbSaveMessage(sessionId, user.id, "user", query)
+        if (user) await dbSaveMessage(sessionId, user.id, "user", displayQuery)
 
-        // Inject web: prefix only for web mode so n8n routes to Dev Mode Agent.
-        // Curator mode must stay archive-backed, so it sends the plain query plus
-        // curator instructions for the archive agent to use after retrieval.
-        const webhookQuery = webMode ? `web: ${query}` : query
+        let preparedDocument = null
+        if (document) {
+            try {
+                preparedDocument = await prepareDocumentUpload(document)
+            } catch (error) {
+                const message = error?.message || "Jabril could not read that document. Try a PDF or text file."
+                setDocumentError(message)
+                setMessages(prev => [
+                    ...prev.filter(m => m.role !== "loading"),
+                    { id: `e-${Date.now()}`, role: "ai", text: message },
+                ])
+                setLoading(false)
+                return
+            }
+        }
+
+        // Inject web: prefix only for Web Mode so n8n routes to its live-search path.
+        const webhookQuery = document ? query : webMode ? `web: ${query}` : query
 
         // Pass the signed-in user's existing signup display name to n8n.
         // Anonymous users and accounts without a saved full_name send no name.
@@ -2964,21 +3484,44 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         // Resolve authentication first so auth/session lookup time does not consume
         // the webhook response window.
         const { data: { session: authSession } } = await supabase.auth.getSession()
-        const requestHeaders = { "Content-Type": "application/json" }
+        const requestHeaders = {}
         if (authSession?.access_token) {
             requestHeaders.Authorization = `Bearer ${authSession.access_token}`
         }
 
-        // Give the live n8n webhook enough time to finish archive retrieval and
-        // Curator processing before the browser cancels the request.
+        let requestUrl = WEBHOOK_URL
+        let requestBody
+        if (document) {
+            requestUrl = DOCUMENT_WEBHOOK_URL
+            const form = new FormData()
+            form.append("query", query)
+            form.append("sessionId", sessionId ?? "anon")
+            form.append("mode", "web")
+            form.append("fileName", document.name)
+            form.append("fileType", document.type || "application/octet-stream")
+            form.append("fileSize", String(document.size))
+            if (userName) form.append("userName", userName)
+            if (preparedDocument?.documentText) {
+                form.append("documentText", preparedDocument.documentText)
+            } else {
+                form.append("document", document, document.name)
+            }
+            requestBody = form
+        } else {
+            requestHeaders["Content-Type"] = "application/json"
+            requestBody = JSON.stringify(webhookBody)
+        }
+
+        // Give the live n8n webhook enough time to extract the document, research
+        // current web sources, and return the completed revision.
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 180000)
 
         try {
-            const res = await fetch(WEBHOOK_URL, {
+            const res = await fetch(requestUrl, {
                 method: "POST",
                 headers: requestHeaders,
-                body: JSON.stringify(webhookBody),
+                body: requestBody,
                 signal: controller.signal,
             })
             if (!res.ok) throw new Error()
@@ -3003,6 +3546,10 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
 
             const aiMsg = { id: `a-${Date.now()}`, role: "ai", text: clean }
             setMessages(prev => [...prev.filter(m => m.role !== "loading"), aiMsg])
+            if (document) {
+                setAttachment(null)
+                setDocumentError("")
+            }
 
             if (user) {
                 await dbSaveMessage(sessionId, user.id, "assistant", clean)
@@ -3019,8 +3566,12 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
 
         } catch(e) {
             const message = e?.name === "AbortError"
-                ? "The Archive response timed out before it reached the website. Please try again."
-                : "Connection to the Archive interrupted. Please try again."
+                ? (document
+                    ? "Web-assisted document enhancement timed out. Please try again."
+                    : webMode ? "Web research timed out. Please try again." : "The Archive response timed out before it reached the website. Please try again.")
+                : (document
+                    ? "Jabril could not process that document with Web research. Check the file and try again."
+                    : webMode ? "Connection to Web research was interrupted. Please try again." : "Connection to the Archive interrupted. Please try again.")
             const errMsg = { id: `e-${Date.now()}`, role: "ai", text: message }
             setMessages(prev => [...prev.filter(m => m.role !== "loading"), errMsg])
         } finally {
@@ -3238,9 +3789,21 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                 hasSidebar={!isMobile && !!user}
                 inputRef={inputRef}
                 webMode={webMode}
-                onSelectWeb={() => { setWebMode(true); setCuratorMode(false) }}
+                onSelectWeb={() => {
+                    setWebMode(true); setCuratorMode(false); setDocumentError("")
+                }}
                 curatorMode={curatorMode}
-                onSelectCurator={() => { setCuratorMode(true); setWebMode(false) }}
+                onSelectCurator={() => {
+                    if (attachment) {
+                        setDocumentError("Remove the uploaded document before switching to Jabril mode. Document enhancement is available only in Web Mode.")
+                        return
+                    }
+                    setCuratorMode(true); setWebMode(false); setDocumentError("")
+                }}
+                attachment={attachment}
+                documentError={documentError}
+                onFileSelect={selectDocument}
+                onRemoveDocument={() => { setAttachment(null); setDocumentError("") }}
             />
 
             {podcastTarget && (
