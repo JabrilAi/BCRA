@@ -3789,22 +3789,6 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                                 📲 Install
                             </button>
                         )}
-                        <a
-                            href={CONTRIBUTE_URL}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Help preserve and expand the archive"
-                            style={{
-                                background: "transparent", border: `1px solid ${GOLD}`,
-                                borderRadius: 6, color: GOLD, fontFamily: "inherit",
-                                fontSize: 12, fontWeight: 600, height: 30, padding: "0 12px",
-                                cursor: "pointer", whiteSpace: "nowrap",
-                                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                                lineHeight: 1, textDecoration: "none",
-                            }}
-                        >
-                            <span style={{ fontSize: 14 }}>♡</span> Contribute
-                        </a>
                         <button
                             onClick={() => setMobileMenuOpen(true)}
                             aria-label="Open menu"
