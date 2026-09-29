@@ -171,6 +171,7 @@ const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
 const MAX_DOCUMENT_TEXT_CHARS = 80000
 const ACCEPTED_DOCUMENT_EXTENSIONS = ["pdf", "docx", "txt", "csv", "xls", "xlsx"]
 const DOCUMENT_ACCEPT = ".pdf,.docx,.txt,.csv,.xls,.xlsx"
+const DOCUMENT_TTL_MS = 24 * 60 * 60 * 1000
 
 // Creator-only podcast endpoint. The server-side n8n workflow is the
 // authoritative authorization boundary; this client-side ID only controls
@@ -2477,6 +2478,11 @@ function InputBar({
                                 {documentError}
                             </div>
                         )}
+                        {attachment && (
+                            <div style={{ color: MUTED, fontSize: 11, marginTop: 5 }}>
+                                This document and Jabril’s response are temporary and disappear from this chat within 24 hours.
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -3348,6 +3354,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
     const [curatorMode, setCuratorMode]     = useState(true)
     const [attachment, setAttachment]       = useState(null)
     const [documentError, setDocumentError] = useState("")
+    const documentExpiryRef = useRef(null)
     const [podcastTarget, setPodcastTarget] = useState(null)
     const [podcastCreating, setPodcastCreating] = useState(false)
     const [podcastEpisode, setPodcastEpisode] = useState(null)
@@ -3387,9 +3394,25 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         }
     }, [messages, view])
 
+    // Uploaded material and its response live only in this tab for up to 24 hours.
+    useEffect(() => {
+        const timer = setInterval(() => {
+            const now = Date.now()
+            if (documentExpiryRef.current && now >= documentExpiryRef.current) {
+                setAttachment(null)
+                documentExpiryRef.current = null
+            }
+            setMessages(previous => previous.some(message => message.expiresAt && message.expiresAt <= now)
+                ? previous.filter(message => !message.expiresAt || message.expiresAt > now)
+                : previous)
+        }, 60000)
+        return () => clearInterval(timer)
+    }, [])
+
     function newChat() {
         setActiveId(null); setMessages([]); setPrompt(""); setView("welcome")
         setAttachment(null); setDocumentError("")
+        documentExpiryRef.current = null
     }
 
     function selectDocument(file) {
@@ -3400,6 +3423,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
             return
         }
         setAttachment(file)
+        documentExpiryRef.current = Date.now() + DOCUMENT_TTL_MS
         setDocumentError("")
         // Document enhancement is a Web Mode capability. Keep this guard even
         // though the attachment control is hidden outside Web Mode.
@@ -3408,6 +3432,8 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
     }
 
     async function loadSession(id) {
+        setAttachment(null)
+        documentExpiryRef.current = null
         const session = history.find(h => h.id === id)
         if (!session) return
         // Clear first so stale messages don't flash
@@ -3460,6 +3486,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
 
     async function send(queryOverride) {
         const document = attachment
+        const documentExpiresAt = document ? Date.now() + DOCUMENT_TTL_MS : null
         const typedQuery = String(queryOverride || prompt || "").trim()
         const query = typedQuery || (document
             ? "Review and enhance this document using relevant, credible live web sources."
@@ -3477,7 +3504,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         let sessionId = activeId
 
         // Logged-in: always create a new session for each new question
-        if (user && !sessionId) {
+        if (user && !sessionId && !document) {
             const titleSource = document ? `${document.name}: ${query}` : query
             const title = titleSource.slice(0, 60) + (titleSource.length > 60 ? "…" : "")
             try {
@@ -3491,13 +3518,16 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         }
 
         // Anonymous: use local session id
-        if (!user && !sessionId) {
+        if (!user && !sessionId && !document) {
             sessionId = `anon-${Date.now()}`
             setActiveId(sessionId)
         }
 
         const displayQuery = document ? `📎 ${document.name}\n\n${query}` : query
-        const userMsg    = { id: `u-${Date.now()}`, role: "user", text: displayQuery }
+        // A document request gets a separate, temporary workflow session. It must
+        // never inherit or write a saved chat session containing private content.
+        if (document) sessionId = `document-${crypto.randomUUID()}`
+        const userMsg    = { id: `u-${Date.now()}`, role: "user", text: displayQuery, expiresAt: documentExpiresAt }
         const loadingMsg = {
             id: `l-${Date.now()}`,
             role: "loading",
@@ -3506,7 +3536,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         }
         setMessages(prev => [...prev, userMsg, loadingMsg])
 
-        if (user) await dbSaveMessage(sessionId, user.id, "user", displayQuery)
+        if (user && !document) await dbSaveMessage(sessionId, user.id, "user", displayQuery)
 
         let preparedDocument = null
         if (document) {
@@ -3602,7 +3632,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                 clean = cleanMarkdown(clean)
             }
 
-            const aiMsg = { id: `a-${Date.now()}`, role: "ai", text: clean }
+            const aiMsg = { id: `a-${Date.now()}`, role: "ai", text: clean, expiresAt: documentExpiresAt }
             setMessages(prev => [...prev.filter(m => m.role !== "loading"), aiMsg])
             if (document) {
                 setAttachment(null)
@@ -3610,7 +3640,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
             }
 
             if (user) {
-                await dbSaveMessage(sessionId, user.id, "assistant", clean)
+                if (!document) await dbSaveMessage(sessionId, user.id, "assistant", clean)
                 const newCount = await incrementQuestions(user.id)
                 setQuestionsUsed(newCount)
             } else {
