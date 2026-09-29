@@ -1692,8 +1692,15 @@ const DOCUMENT_THINKING_STAGES = [
     },
 ]
 
+const ARCHIVE_DOCUMENT_THINKING_STAGES = [
+    { title: "Reading your document", detail: "Preparing the uploaded material as private working context." },
+    { title: "Searching the archive", detail: "Finding relevant passages in Jabril's curated sources." },
+    { title: "Connecting evidence", detail: "Checking which archive passages support the requested changes." },
+    { title: "Preparing the answer", detail: "Shaping the revision and citing the archive where it adds facts." },
+]
+
 function ThinkingState({ mode = "archive", isMobile = false }) {
-    const stages = mode === "document"
+    const stages = mode === "archive-document" ? ARCHIVE_DOCUMENT_THINKING_STAGES : mode === "document"
         ? DOCUMENT_THINKING_STAGES
         : mode === "web" ? WEB_THINKING_STAGES : ARCHIVE_THINKING_STAGES
     const [stageIndex, setStageIndex] = useState(0)
@@ -2428,7 +2435,7 @@ function InputBar({
                     <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
                 </div>
             )}
-            {webMode && (attachment || documentError) && (
+            {(attachment || documentError) && (
                 <div style={{
                     marginLeft: ml,
                     display: "flex",
@@ -2598,7 +2605,7 @@ function InputBar({
                             </button>
                         </>
                     )}
-                    {webMode && (
+                    {(
                         <>
                             <input
                                 ref={fileInputRef}
@@ -2617,7 +2624,7 @@ function InputBar({
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={disabled}
-                                title="Attach a document for live web-assisted enhancement (10 MB max)"
+                                title={webMode ? "Attach a document for live web research (10 MB max)" : "Attach a document for archive-backed Jabril research (10 MB max)"}
                                 aria-label={attachment ? "Replace attached document" : "Attach a document"}
                                 style={{
                                     width: isMobile ? (isNarrow ? 38 : 40) : 48,
@@ -2645,7 +2652,7 @@ function InputBar({
                         value={value}
                         onChange={onChange}
                         onKeyDown={onKeyDown}
-                        placeholder={listening ? "Listening..." : attachment ? "Tell Jabril how to improve this document..." : webMode ? "Search the Web..." : "Ask Jabril..."}
+                        placeholder={listening ? "Listening..." : attachment ? "Tell Jabril what to do with this document..." : webMode ? "Search the Web..." : "Ask Jabril..."}
                         disabled={disabled}
                         style={{
                             flex: isMobile ? "0 0 100%" : 1,
@@ -3425,10 +3432,6 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         setAttachment(file)
         documentExpiryRef.current = Date.now() + DOCUMENT_TTL_MS
         setDocumentError("")
-        // Document enhancement is a Web Mode capability. Keep this guard even
-        // though the attachment control is hidden outside Web Mode.
-        setCuratorMode(false)
-        setWebMode(true)
     }
 
     async function loadSession(id) {
@@ -3489,7 +3492,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         const documentExpiresAt = document ? Date.now() + DOCUMENT_TTL_MS : null
         const typedQuery = String(queryOverride || prompt || "").trim()
         const query = typedQuery || (document
-            ? "Review and enhance this document using relevant, credible live web sources."
+            ? (webMode ? "Review and enhance this document using relevant, credible live web sources." : "Review and enhance this document using relevant evidence from Jabril's archive.")
             : "")
         if (!query || query.length < 2 || loading) return
 
@@ -3531,7 +3534,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
         const loadingMsg = {
             id: `l-${Date.now()}`,
             role: "loading",
-            mode: document ? "document" : webMode ? "web" : "archive",
+            mode: document ? (webMode ? "document" : "archive-document") : webMode ? "web" : "archive",
             text: document ? "Jabril is enhancing your document..." : webMode ? "Searching the web..." : "Jabril is thinking...",
         }
         setMessages(prev => [...prev, userMsg, loadingMsg])
@@ -3584,7 +3587,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
             const form = new FormData()
             form.append("query", query)
             form.append("sessionId", sessionId ?? "anon")
-            form.append("mode", "web")
+            form.append("mode", webMode ? "web" : "jabril")
             form.append("fileName", document.name)
             form.append("fileType", document.type || "application/octet-stream")
             form.append("fileSize", String(document.size))
@@ -3877,16 +3880,12 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                 }}
                 curatorMode={curatorMode}
                 onSelectCurator={() => {
-                    if (attachment) {
-                        setDocumentError("Remove the uploaded document before switching to Jabril mode. Document enhancement is available only in Web Mode.")
-                        return
-                    }
                     setCuratorMode(true); setWebMode(false); setDocumentError("")
                 }}
                 attachment={attachment}
                 documentError={documentError}
                 onFileSelect={selectDocument}
-                onRemoveDocument={() => { setAttachment(null); setDocumentError("") }}
+                onRemoveDocument={() => { setAttachment(null); documentExpiryRef.current = null; setDocumentError("") }}
             />
 
             {podcastTarget && (
