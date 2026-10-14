@@ -173,13 +173,11 @@ const ACCEPTED_DOCUMENT_EXTENSIONS = ["pdf", "docx", "txt", "csv", "xls", "xlsx"
 const DOCUMENT_ACCEPT = ".pdf,.docx,.txt,.csv,.xls,.xlsx"
 const DOCUMENT_TTL_MS = 24 * 60 * 60 * 1000
 
-// Creator-only podcast endpoint. The server-side n8n workflow is the
-// authoritative authorization boundary; this client-side ID only controls
-// whether the creator UI is shown.
+// Podcasts are available to all signed-in users. The n8n workflow validates
+// the Supabase session before generating audio.
 const PODCAST_WEBHOOK_URL =
     import.meta.env.VITE_PODCAST_WEBHOOK_URL ||
     "https://anthonyai.app.n8n.cloud/webhook/jabril-podcast"
-const PODCAST_CREATOR_ID = import.meta.env.VITE_PODCAST_CREATOR_ID || ""
 
 const DIVE_DEEPER_ENABLED = true // capped at 2 Supabase Retrieve Tool calls per the n8n system prompt
 
@@ -1432,7 +1430,7 @@ function MessageText({ text, role }) {
 }
 
 
-// ─── Creator Podcast Studio ───────────────────────────────────────────────────
+// ─── Podcast Studio ───────────────────────────────────────────────────
 function getBcraSources(text = "") {
     const sources = []
     const seen = new Set()
@@ -1496,7 +1494,7 @@ function PodcastComposer({ target, onClose, onCreate, isMobile, creating }) {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 12 }}>
                     <div>
                         <div style={{ color: GOLD, fontSize: 11, letterSpacing: "0.13em", fontWeight: 700, textTransform: "uppercase", marginBottom: 8 }}>
-                            Creator studio
+                            Podcast studio
                         </div>
                         <h2 id="podcast-title" style={{
                             margin: 0, color: TEXT, fontFamily: "'Cormorant Garamond', serif",
@@ -2095,7 +2093,7 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, isNarrow, 
                                                 />
                                             )}
                                         </div>
-                                        {/* Creator-only podcast button */}
+                                        {/* Podcast button for signed-in users */}
                                         {onCreatePodcast && (
                                             <button
                                                 onClick={() => {
@@ -3718,8 +3716,10 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
             if (!res.ok) {
                 const detail = await res.text().catch(() => "")
                 throw new Error(
-                    res.status === 401 || res.status === 403
-                        ? "Podcast creation is restricted to the creator account."
+                    res.status === 401
+                        ? "Your session has expired. Please sign in again."
+                        : res.status === 403
+                        ? "Podcast access was denied. Please sign in again or contact support."
                         : detail || `Podcast service returned HTTP ${res.status}.`
                 )
             }
@@ -3859,7 +3859,7 @@ function MainApp({ user, onSignOut, onAuthNeeded, showInstall = false }) {
                         isNarrow={isNarrow}
                         send={send}
                         loading={loading}
-                        onCreatePodcast={user && PODCAST_CREATOR_ID && user.id === PODCAST_CREATOR_ID ? setPodcastTarget : null}
+                        onCreatePodcast={user ? setPodcastTarget : null}
                     />
                 }
             </main>
