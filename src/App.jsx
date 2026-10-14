@@ -2093,21 +2093,6 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, isNarrow, 
                                                 />
                                             )}
                                         </div>
-                                        {/* Podcast button for signed-in users */}
-                                        {onCreatePodcast && (
-                                            <button
-                                                onClick={() => {
-                                                    const question = messages[index - 1]?.role === "user" ? messages[index - 1].text : ""
-                                                    onCreatePodcast({ message: msg, question })
-                                                }}
-                                                style={actionBtnStyle(false)}
-                                                onMouseEnter={e => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.color = GOLD }}
-                                                onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED }}
-                                                title="Create a podcast preview from this answer"
-                                            >
-                                                Podcast
-                                            </button>
-                                        )}
                                         {/* Translate button + picker */}
                                         <div style={{ position: "relative" }}>
                                             <button
@@ -2272,6 +2257,36 @@ function ChatArea({ messages, messagesEndRef, latestMsgRef, isMobile, isNarrow, 
                                             {diveDeeperUsed[msg.id] ? "Dive Deeper ✓" : "Dive Deeper"}
                                         </button>
                                     )}
+                                </div>
+                            )}
+
+                            {/* Podcast action below the answer on mobile and desktop */}
+                            {onCreatePodcast && isPodcastEligibleMessage(msg) && msg.text?.trim() && (
+                                <div style={{ marginTop: 16, marginBottom: 8 }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const question = messages[index - 1]?.role === "user" ? messages[index - 1].text : ""
+                                            onCreatePodcast({ message: msg, question })
+                                        }}
+                                        style={{
+                                            background: `${GOLD}18`,
+                                            border: `1px solid ${GOLD}`,
+                                            borderRadius: 8,
+                                            color: GOLD,
+                                            fontFamily: "inherit",
+                                            fontSize: 14,
+                                            fontWeight: 600,
+                                            padding: "11px 18px",
+                                            minHeight: 44,
+                                            width: isMobile ? "100%" : "auto",
+                                            boxSizing: "border-box",
+                                            cursor: "pointer",
+                                        }}
+                                        title="Create a podcast from this answer"
+                                    >
+                                        Create Podcast
+                                    </button>
                                 </div>
                             )}
 
